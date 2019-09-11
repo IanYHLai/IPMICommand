@@ -18,8 +18,3 @@ echo "  Input argument as 'bye' to end the script                               
 echo ""
 echo ""
 
-read -p "Input 'bye' to quit the script... or press other key to continue the test script:" fq
-case $fq in
-	'exit'|'Exit'|'EXIT'|'q'|'Q'|'bye'|'Bye'|'BYE') echo " Bye $USER quit the test..." & exit ;;
-	*) clear & echo "Reselect the Function please..." & ./IPMICommandTest.sh ;;
-esac

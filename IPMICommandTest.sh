@@ -24,7 +24,6 @@ color_reset='\e[0m'
 color_green='\e[32m'
 color_red='\e[31m'
 color_convert='\e[7m'
-
 clear
 echo ""
 echo ""
@@ -35,24 +34,69 @@ echo -e "  ${color_green}6 = App function."
 echo -e "  8 = firmware function."
 echo -e "  a = storage function."									  
 echo -e "  c = transport function."
-echo -e "  ${color_reset}Other any character or none argument for all function. Except the chassis and bridge function that may modify the system setting."
-echo -e "  help or h or ? for script info"
+echo -e "  ${color_green}For all function just type all.${color_reset}"
+echo  "  help or h or ? for script info"
 
 function Test_Fuction () {
-	read -p "Please select the Netfn :" Netfn
-	case $Netfn in 
-	chassis | 0 | 0x00) echo Test chassis Netfn command...  & ./chassis.sh;;
-	bridge | 2 | 0x02) echo Test Bridge Netfn command...  & ./bridge.sh;;
-	SE | 4 | 0x04) echo Test SE Netfn command...  & ./SE.sh;;
-	App | 6 | 0x06) echo Test App Netfn command...  & ./App.sh;;
-	firmware | 8 | 0x08) echo Test Firmware Netfn command... & ./firmware.sh;;
-	Storage | 'a' | 0x0a) echo Test Storage Netfn command... & ./Storage.sh;;
-	transport | 'c' | 0x0c) echo Test Transport Netfn command... & ./transport.sh;;
-	'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." & exit ;;
-	'help'|'h'|'?') clear & ./help.sh;;
-	all | '') echo Test All Netfn... & ./All.sh;;
-	*) echo "can not identify the function please enter the function agan..." & echo "" & Test_Fuction;;
-	esac
+	read -p "Please select the Netfn use the space key to distinguash the multiple function : " Netfn
+	#Read Netfn in to upto 7 function being selected
+	read Fn1 Fn2 Fn3 Fn4 Fn5 Fn6 Fn7 <<< "$Netfn"
+	#Function array for check which function being selected
+	Fn=(0 0 0 0 0 0 0)
+	#Fn Counter
+	FnC=0
+	for i in Fn{1..7}
+	do
+		eval Temp=\$$i
+		case $Temp in
+			chassis | "0" | 0x00) echo Select chassis Netfn command & Fn[0]=1 && continue ;;
+			bridge | "2" | 0x02) echo Select Bridge Netfn command & Fn[1]=1 && continue ;;
+			SE | "4" | 0x04) echo Select SE Netfn command & Fn[2]=1 && continue ;;
+			App | "6" | 0x06) echo Select App Netfn command & Fn[3]=1 && continue ;;
+			firmware | "8" | 0x08) echo Select Firmware Netfn command & Fn[4]=1 && continue ;;
+			Storage | "a" | 0x0a) echo Select Storage Netfn command & Fn[5]=1 && continue ;;
+			transport | "c" | 0x0c) echo Select Transport Netfn command & Fn[6]=1 && continue ;;
+			'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." & break ;;
+			'help'|'h'|'?') clear & ./help.sh;;
+			all | All | ALL ) echo Test All Netfn... & ./All.sh && break;;
+			'') break;;
+			*) echo -e "${color_red} not identify the function please enter the function agan...${color_reset}" & exit;;
+		esac
+	done
+	echo""
+	for i in {0..6};
+	do
+		if [ ${Fn[$i]} -eq 1 ];then
+			FnC=1 && break;
+		fi
+	done
+	
+	if [ $FnC -eq 1 ];then
+		echo "Start Testing selected function..."
+	else
+		clear && echo "No Netfn select, end testing..." 
+	fi
+	if [ ${Fn[0]} -eq '1' ];then
+		./Chassis.sh
+	fi
+	if [ ${Fn[1]} -eq '1' ];then
+		./Bridge.sh
+	fi
+	if [ ${Fn[2]} -eq '1' ];then
+		./SE.sh
+	fi
+	if [ ${Fn[3]} -eq '1' ];then
+		./App.sh
+	fi
+	if [ ${Fn[4]} -eq '1' ];then
+		./Firmware.sh
+	fi
+	if [ ${Fn[5]} -eq '1' ];then
+		./Storage.sh
+	fi
+	if [ ${Fn[6]} -eq '1' ];then
+		./Transport.sh
+	fi
 }
 
 Test_Fuction

@@ -17,7 +17,8 @@ IFS=. read ip1 ip2 ip3 ip4 <<< "$CliIP" # set delimiter IFS='.' then pass the st
 # ip2=${CliIP%%.*} && CliIP=${CliIP#*.*} 
 # ip3=${CliIP%%.*} && CliIP=${CliIP#*.*}
 # ip4=${CliIP%%.*} && CliIP=${CliIP#*.*}
-
+##Convert to Binary
+D2B=({0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1})
 ## Convert ip to hex
 ip1=$(printf '%x\n' "$ip1")
 ip2=$(printf '%x\n' "$ip2")
@@ -44,53 +45,66 @@ color_convert='\e[7m'
 #
 #
 # raw 0x04 0x00
-echo Set Event Receiver >> SE.log
-echo "Response below :" >> SE.log
-$i 0x00
+echo ""
+echo " Set Event Receiver" |tee -a  SE.log
+echo " Response below :" |tee -a  SE.log
+read ER1 ER2 <<< $i 0x01
+$i 0x00 0x20 0x00
 if [ ! $?==0 ] ; then
-	echo Set Event Receiver failed 
-	$i 0x00 >> SE.log
-	echo " Set Event Receiver $i 0x00 fail " >> SE.log
-	$FailCounter=$(($FailCounter+1))
+	$i 0x00 0x20 0x00 >> SE.log
+	echo " Set Event Receiver failed" | tee -a SE.log
+	FailCounter=$(($FailCounter+1))
 else
-	echo Set Event Receiver success
-	$i 0x00 >> SE.log
-	echo " Set Event Receiver $i 0x00 success " >> SE.log
+	$i 0x00 0x20 0x00>> SE.log
+	echo " Set Event Receiver to Slave Address=0x20 and LUN=0x00 finished " |tee -a SE.log
+	echo " Restore default value..."
+	$i 0x00 0x$ER1 0x$ER2
+	echo " Restore finished..."
 fi
 
 # raw 0x04 0x01
-echo Get Event Receiver >> SE.log
-echo "Response below :" >> SE.log
+echo ""
+echo " Get Event Receiver" |tee -a  SE.log
+echo " Response below :" |tee -a  SE.log
 $i 0x01
 if [ ! $?==0 ] ; then
-	echo Get Event Receiver failed 
 	$i 0x01 >> SE.log
-	echo " Get Event Receiver $i 0x01 fail " >> SE.log
-	$FailCounter=$(($FailCounter+1))
+	echo " Get Event Receiver failed" |tee -a SE.log
+	FailCounter=$(($FailCounter+1))
 else
-	echo Get Event Receiver success
 	$i 0x01 >> SE.log
-	echo " Get Event Receiver $i 0x01 success " >> SE.log
+	read ER1 ER2 <<< $($i 0x00)
+	for j in ER{1..2}; do
+		eval temp=\$$j
+		temp=${D2B[$((16#$temp))]}
+		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+	done
+	if [ $ER1 -eq 'ff' ];then
+		echo " Event Message Generation has been disabled."|tee -a SE.log
+	else
+		echo " Event Receiver Slave Address = 0x$ER1"
+	fi
+	echo " Event Receiver LUN = 0x$ER2"|tee -a SE.log
+	echo " Get Event Receiver finished " |tee -a  SE.log
 fi
 
-# raw 0x04 0x02
-echo Platform Event Message Command >> SE.log
-echo "Response below :" >> SE.log
-$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00
-if [ ! $?==0 ] ; then
-	echo Platform Event Message Command failed 
-	$i 0x02 0x04 0x07 0x70 0x6f 0x00 0x00 0x00 >> SE.log
-	echo " Platform Event Message Command $i 0x02 fail " >> SE.log
-	$FailCounter=$(($FailCounter+1))
-else
-	echo Platform Event Message Command success
-	$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
-	echo " Platform Event Message Command $i 0x02 success " >> SE.log
-fi
+# raw 0x04 0x02 This command need to check the sensor name , ID, type, event data suggest that manual testing for high testing quality
+#echo ""
+#echo " Platform Event Message Command" |tee -a  SE.log
+#echo " Response below :" |tee -a  SE.log
+#$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00
+#if [ ! $?==0 ] ; then
+#	echo " Platform Event Message Command failed" |tee -a SE.log
+#	$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
+#	$FailCounter=$(($FailCounter+1))
+#else
+#	$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
+#	echo " Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please..." |tee -a  SE.log
+#fi
 
 # raw 0x04 0x10
-echo Get PEF Capabilities Command >> SE.log
-echo "Response below :" >> SE.log
+echo " Get PEF Capabilities Command" |tee -a  SE.log
+echo " Response below :" |tee -a SE.log
 $i 0x10
 if [ ! $?==0 ] ; then
 	echo Get PEF Capabilities Command failed 

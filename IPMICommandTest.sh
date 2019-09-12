@@ -20,8 +20,13 @@
 #																								  #
 #																								  #
 ###################################################################################################
+echo "Backup the SEL and clear it..."
+ipmitool sel elist > $(date +%Y%m%d_%T)_SELBeforeTest
+ipmitool sel clear
+
 color_reset='\e[0m'
 color_green='\e[32m'
+color_blue='\e[34m'
 color_red='\e[31m'
 color_convert='\e[7m'
 clear
@@ -49,6 +54,10 @@ function Test_Fuction () {
 	do
 		eval Temp=\$$i
 		case $Temp in
+			'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." && exit ;;
+			'help'|'h'|'?') clear & ./help.sh && Test_Fuction;;
+			all | All | ALL ) echo Test All Netfn... & ./All.sh && break;;
+			'') break;;
 			chassis | "0" | 0x00) echo Select chassis Netfn command & Fn[0]=1 && continue ;;
 			bridge | "2" | 0x02) echo Select Bridge Netfn command & Fn[1]=1 && continue ;;
 			SE | "4" | 0x04) echo Select SE Netfn command & Fn[2]=1 && continue ;;
@@ -56,11 +65,7 @@ function Test_Fuction () {
 			firmware | "8" | 0x08) echo Select Firmware Netfn command & Fn[4]=1 && continue ;;
 			Storage | "a" | 0x0a) echo Select Storage Netfn command & Fn[5]=1 && continue ;;
 			transport | "c" | 0x0c) echo Select Transport Netfn command & Fn[6]=1 && continue ;;
-			'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." & break ;;
-			'help'|'h'|'?') clear & ./help.sh;;
-			all | All | ALL ) echo Test All Netfn... & ./All.sh && break;;
-			'') break;;
-			*) echo -e "${color_red} not identify the function please enter the function agan...${color_reset}" & exit;;
+			*) echo -e "${color_red} Could not identify the function please enter the function agan...${color_reset}" & exit;;
 		esac
 	done
 	echo""
@@ -70,11 +75,11 @@ function Test_Fuction () {
 			FnC=1 && break;
 		fi
 	done
-	
+		
 	if [ $FnC -eq 1 ];then
-		echo "Start Testing selected function..."
+		echo -e "${color_blue}Start Testing selected function...${color_reset}"
 	else
-		clear && echo "No Netfn select, end testing..." 
+		clear && echo -e "${color_red}No Netfn select, end testing...${color_reset}" 
 	fi
 	if [ ${Fn[0]} -eq '1' ];then
 		./Chassis.sh

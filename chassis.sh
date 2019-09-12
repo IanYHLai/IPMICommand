@@ -304,7 +304,7 @@ if [ $? -eq '1' ] ; then
 	Fail4=1
 else
 	echo "Check the identify LED solid on of not..."|tee -a chassis.log
-	echo " Chassis Identify finished" |tee -a chassis.log
+	echo -e "${color_green}Chassis Identify finished${color_reset}" |tee -a chassis.log
 fi
 
 # raw 0x00 0x0a
@@ -320,7 +320,7 @@ if [ $? -eq '1' ] ; then
 	FailCounter=$(($FailCounter+1))
 	Faila=1
 else
-	echo " Set all Front Panel Button disabled finished " | tee -a chassis.log
+	echo "${color_green}Set all Front Panel Button disabled finished${color_reset} " | tee -a chassis.log
 fi
 
 # raw 0x00 0x05
@@ -340,7 +340,7 @@ if [ $? -eq '1' ] ; then
 	$i 0x05 0x05 0x20 0x20 0x20 0x20 0x28 |tee -a chassis.log
 	echo -e "${color_red}Set Chassis Capabilities Command $i 0x05 fail ${color_reset}" >> chassis.log
 else
-	echo -e "${color_green}Set Chassis Capabilities Command success${color_reset}"|tee -a chassis.log
+	echo -e "${color_green}Set Chassis Capabilities Command finished${color_reset}"|tee -a chassis.log
 	$i 0x05 0x05 0x20 0x20 0x20 0x20 0x28 >> chassis.log
 	echo "Restore setting..."
 	
@@ -360,7 +360,7 @@ if [ $? -eq '1' ] ; then
 	Fail6=1
 else
 	if [ $(ipmitool raw 0x00 0x01|awk '{print$1}') -eq '01' ]; then
-		echo -e "${color_green}Set Power Restore Policy Command success${color_reset}"|tee -a chassis.log
+		echo -e "${color_green}Set Power Restore Policy Command finished${color_reset}"|tee -a chassis.log
 		$i 0x06 0x00 |tee -a chassis.log
 	else
 		echo -e "${color_red}Set Power Restore Policy Command failed ${color_reset}"|tee -a chassis.log
@@ -381,7 +381,7 @@ if [ $? -eq '1' ] ; then
 	FailCounter=$(($FailCounter+1))
 	Failb=1
 else
-	echo -e "${color_green}Set Power cycle interval Command success${color_reset}"|tee -a chassis.log
+	echo -e "${color_green}Set Power cycle interval Command finished${color_reset}"|tee -a chassis.log
 	$i 0x0b 0x0a |tee -a chassis.log
 fi
 
@@ -440,7 +440,7 @@ if [ $? -eq '1' ] ; then
 	FailCounter=$(($FailCounter+1))
 	Fail8=1
 else
-	echo -e "${color_green}Set System Boot Options Command success${color_reset}"|tee -a chassis.log
+	echo -e "${color_green}Set System Boot Options Command finished${color_reset}"|tee -a chassis.log
 	$i 0x08 0x05 0xe0 0x18 0x00 0x00 0x00 |tee -a chassis.log
 fi
 
@@ -456,7 +456,7 @@ if [ $? -eq '1' ] ; then
 	Fail9=1
 else
 	if [ "$($i 0x09 0x05 0x00 0x00)" == " 01 05 e0 18 00 00" ]; then # Check the value match the setting.
-		echo -e "${color_green}Get System Boot Options Command success${color_reset}"|tee -a chassis.log
+		echo -e "${color_green}Get System Boot Options Command finished${color_reset}"|tee -a chassis.log
 		$i 0x09 0x05 0x00 0x00 |tee -a chassis.log
 	else
 		echo -e "${color_red}Get System Boot Options Command failed ${color_reset}"

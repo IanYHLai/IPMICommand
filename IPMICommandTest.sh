@@ -55,7 +55,7 @@ function Test_Fuction () {
 		eval Temp=\$$i
 		case $Temp in
 			'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." && exit ;;
-			'help'|'h'|'?') clear & ./help.sh && Test_Fuction;;
+			'help'|'h'|'?') clear & more help.txt && Test_Fuction;;
 			all | All | ALL ) echo Test All Netfn... & ./All.sh && break;;
 			'') break;;
 			chassis | "0" | 0x00) echo Select chassis Netfn command & Fn[0]=1 && continue ;;

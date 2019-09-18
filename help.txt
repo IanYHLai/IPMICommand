@@ -1,0 +1,15 @@
+
+	This bash script is for ipmitool command test 								  
+	Editor : IanYH_Lai	version v 1.0
+	Choose the Netfn before testing. If Tester wants to test multiple function the Netfn format need to be a number or character only.
+	Example : 0 6 a 2 will test Chassis, Bridge, App, storage function
+	
+ 	Input argument as '0x00' or 'chassis' or '0' => Chassis function 						  
+	Input argument as '0x02' or 'bridge' or '2' => Bridge function (not inplement yet)
+	Input argument as '0x04' or 'SE' or '4' => S/E function									
+    Input argument as '0x06' or 'App' or '6' => App function 								
+    Input argument as '0x08' or 'firmware' or '8' => Firmware function						
+    Input argument as '0x01' or 'storage' or 'a' => Storage function						
+    Input argument as '0x0c' or 'transport' or 'c' => Transport  function					
+    Input argument as 'all' or without argument => All function 							
+    Input argument as 'bye' to end the script                                               

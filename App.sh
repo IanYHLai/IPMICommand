@@ -120,9 +120,47 @@ else
 	echo '' |tee -a App.log
 	echo -e " ${color_green}Get Device ID finished${color_reset}" |tee -a App.log
 fi
-
+echo ""
 # raw 0x06 0x02 
 echo " BMC Cold Rest " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x02
+if [ ! $? -eq '0' ] ; then
+	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo " BMC Cold Restting... Wait for BMC initializing..."
+	sleep 90
+	CRC=0
+	while [ ! $($i 0x01) ] && [ $CRC==35 ]
+	do
+		sleep 5
+		let CRC=$CRC+1
+	done
+	echo "${color_green} BMC Cold Rest finished.${color_reset}"|tee -a App.log
+fi
+echo ""
+# raw 0x06 0x03
+echo " BMC Warm Rest " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x03
+if [ ! $? -eq '0' ] ; then
+	echo -e "${color_red} BMC Warm Reset failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo " BMC Warm Restting... Wait for BMC initializing..."
+	sleep 90
+	WRC=0
+	while [ ! $($i 0x01) ] && [ $WRC==35 ]
+	do
+		sleep 5
+		let WRC=$WRC+1
+	done
+		echo " BMC Warm Rest finished."|tee -a App.log
+fi
+echo ""
+# raw 0x06 0x04
+echo " BMC Self Test " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x02
 if [ ! $? -eq '0' ] ; then
@@ -134,8 +172,27 @@ else
 	sleep 100
 	$i 0x01
 	if [ $? -eq 1 ];then
-		sleep 5
+		sleep 20
 	else
-		echo " BMC "
+		echo " BMC Cold Rest finished."|tee -a App.log
 	fi
 fi
+
+# raw 0x06 0x02 
+echo " BMC Cold Rest " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x02
+if [ ! $? -eq '0' ] ; then
+	$i 0x01 >> App.log
+	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo " BMC Cold Restting... Wait for BMC initializing..."
+	sleep 90
+	while [ ! $($i 0x01) ]
+	do
+		sleep 5
+	done
+	echo " BMC Cold Rest finished."|tee -a App.log
+fi
+

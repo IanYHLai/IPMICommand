@@ -21,7 +21,7 @@
 #																								  #
 ###################################################################################################
 echo "Backup the SEL and clear it..."
-ipmitool sel elist > $(date +%Y%m%d_%T)_SELBeforeTest
+ipmitool -v sel elist > $(date +%Y%m%d_%T)_SELBeforeTest
 ipmitool sel clear
 
 color_reset='\e[0m'

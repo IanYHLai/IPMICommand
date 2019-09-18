@@ -39,7 +39,7 @@ ip1=$(printf '%x\n' "$ip1")
 ip2=$(printf '%x\n' "$ip2")
 ip3=$(printf '%x\n' "$ip3")
 ip4=$(printf '%x\n' "$ip4")
-CliIP=0x$ip1 0x$ip2 0x$ip3 0x$ip4
+CliIP="0x$ip1 0x$ip2 0x$ip3 0x$ip4"
 
 ## Convert MAC format
 IFS=- read mac1 mac2 mac3 mac4 mac5 mac6 <<< "$CliMAC"
@@ -48,6 +48,7 @@ CliMAC="0x$mac1 0x$mac2 0x$mac3 0x$mac4 0x$mac5 0x$mac6"
 SID=0x$(ipmitool sdr elist | grep -i "$SN" | awk -F\| '{print$2}' | cut -c 2-3) #with SN (sensor name) to search the sdr elist then cut the sensor ID to perform like 0xXX and save into $SID.
 
 FailCounter=0
+echo "channel=$Ch SensorName=$SN SensorType=$ST EventType=$ET ip=$CliIP Mac=$CliMAC"
 
 ## Start the test
 # raw 0x04 0x00
@@ -85,7 +86,7 @@ else
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
-	if [ $ER1 -eq 'ff' ];then
+	if [ $ER1=='ff' ];then
 		echo -e " Event Message Generation has been disabled."|tee -a SE.log
 	else
 		echo -e " Event Receiver Slave Address = 0x$ER1"|tee -a SE.log
@@ -98,15 +99,15 @@ fi
 echo ""
 echo " Platform Event Message Command" |tee -a  SE.log
 echo " Response below :" |tee -a  SE.log
-$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00
+$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00
 if [ ! $? -eq '0' ] ; then
+	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
 	echo -e " ${color_red}Platform Event Message Command failed${color_reset}" |tee -a SE.log
-	$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x02 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
+	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
 	echo -e " ${color_green}Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please...${color_reset}" |tee -a  SE.log
-	ipmitool sel elist |tee -a SE.log
+	ipmitool -v sel elist |tee -a SE.log
 fi
 
 # raw 0x04 0x10
@@ -126,7 +127,7 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	
-	echo " The PEF version is $PC1'h', it's LSN first, 51h > version 1.5"|tee -a SE.log
+	echo " The PEF version is $PC1\h, it's LSN first, 51h > version 1.5"|tee -a SE.log
 	if [ $PC2b1 -eq '1' ];then
 		echo " OEM Event Record Filtering supported"|tee -a SE.log
 	else 
@@ -211,7 +212,7 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	$i 0x13 0x00 0x00 0x00 >> SE.log
-	echo -e "The parameter revision is $GP1 (MSN=present revision. LSN = oldest revision parameter is backward compatible with. 11h for parameters in this specification.)"|tee -a SE.log
+	echo -e " The parameter revision is $GP1 (MSN=present revision. LSN = oldest revision parameter is backward compatible with. 11h for parameters in this specification.)"|tee -a SE.log
 	case $GP2b7$GP2b8 in 
 		00) echo -e " Now is set complete state"|tee -a SE.log;;
 		01) echo -e " Now is set in progress state"|tee -a SE.log;;
@@ -258,13 +259,13 @@ echo ""
 echo " Alert Immediate Command" |tee -a SE.log
 echo " Response below :" |tee -a  SE.log
 # Send alert immediately to destination 1 with volatile string
-$i 0x16 $Ch 0x01 0x80 0x00
+$i 0x16 $Ch 0x80 0x00
 if [ ! $? -eq '0' ] ; then
-	$i 0x16 $Ch 0x01 0x80 0x00 >> SE.log
+	$i 0x16 $Ch 0x80 0x00 >> SE.log
 	echo -e "${color_red} Send alert Immediately to destination selector 1 failed ${color_reset}"|tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x16 $Ch 0x01 0x80 0x00 >> SE.log
+	$i 0x16 $Ch 0x80 0x00 >> SE.log
 	echo -e "${color_green} Send alert Immediately to destination selector 1 finished${color_reset}"|tee -a SE.log
 fi
 # 
@@ -323,7 +324,7 @@ else
 	$i 0x21 0x00 0x00 0x00 0x00 0x00 0xff >> SE.log
 	echo -e " Get Device SDR Command finished${color_reset}"|tee -a SE.log
 fi
-
+echo ""
 # raw 0x04 0x22
 echo " Reserve Device SDR Repository Command"|tee -a SE.log
 echo " Response below :" |tee -a  SE.log
@@ -340,10 +341,9 @@ else
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
-	echo " Reserve a SDR Repository ID = $RS2$RS1"
 	echo -e "${color_green} Reserve Device SDR Repository Command finished${color_reset}"|tee -a SE.log
 fi
-
+echo ""
 # raw 0x04 0x23
 #echo " Get Sensor Reading Factors Command"|tee -a SE.log
 #echo " Response below :" |tee -a SE.log
@@ -358,10 +358,10 @@ fi
 #fi
 
 # raw 0x04 0x24
-echo Set Sensor Hysteresis Command >> SE.log
-echo "Response below :" >> SE.log
-resH="$i 0x25 $SID 0xff"
-IFS=" " read resH1 resH2 < "$resH"
+echo " Set Sensor Hysteresis Command" |tee -a SE.log
+echo " Response below :" |tee -a SE.log
+read resH1 resH2 <<< $($i 0x25 $SID 0xff)
+echo $resH1 $resH2
 $i 0x24 $SID 0xff 0x00 0x00 
 if [ ! $? -eq '0' ] ; then
 	$i 0x24 $SID 0xff 0x00 0x00 >> SE.log
@@ -369,41 +369,43 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x24 $SID 0xff 0x00 0x00>> SE.log
-	echo -e "${color_green} Set Sensor Hysteresis Command finished"|tee -a SE.log
+	echo -e "${color_green} Set Sensor Hysteresis Command finished ${color_reset}"|tee -a SE.log
 	echo " Restore default setting...."
-	$i 0x24 $SID 0xff 0x$resH1 0x$resH2
+	$i 0x24 $SID 0xff 0x$resH1 0x$resH2 
 	echo " Restore setting fnished...."
 fi
+
+echo ""
 
 # raw 0x04 0x25
 echo " Get Sensor Hysteresis Command"|tee -a  SE.log
 echo " Response below :" |tee -a SE.log
 $i 0x25 $SID 0xff
 if [ ! $?==0 ] ; then
-	$i 0x25 $SID >> SE.log
+	$i 0x25 $SID 0xff >> SE.log
 	echo -e "${color_red} Get Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x25 $SID>> SE.log
-	read GS1 GS2 <<< $($i 0x25 $SID)
+	$i 0x25 $SID 0xff >> SE.log
+	read GS1 GS2 <<< $($i 0x25 $SID 0xff)
 	for j in GS{1..2}; do
 		eval temp=\$$j
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	if [ ! $GS1 -eq '0' ];then
-		echo "Positive-going Threshold Hysteresis = $GS1"|tee -a SE.log
+		echo " Positive-going Threshold Hysteresis = $GS1"|tee -a SE.log
 	else
-		echo "Positive-going Threshold Hysteresis is N/A"|tee -a SE.log
+		echo " Positive-going Threshold Hysteresis is N/A"|tee -a SE.log
 	fi
 	if [ ! $GS2 -eq '0' ];then
-		echo "Negative-going Threshold Hysteresis = $GS2"|tee -a SE.log
+		echo " Negative-going Threshold Hysteresis = $GS2"|tee -a SE.log
 	else
-		echo "Negative-going Threshold Hysteresis is N/A"|tee -a SE.log
+		echo " Negative-going Threshold Hysteresis is N/A"|tee -a SE.log
 	fi
 	echo -e "${color_green} Get Sensor Hysteresis Command finished${color_reset}"|tee -a SE.log
 fi
-
+echo ""
 
 # raw 0x04 0x27
 echo " Get Sensor Thresholds Command " | tee -a SE.log
@@ -443,72 +445,60 @@ else
 	echo " "|tee -a SE.log
 	echo -e "${color_green} Get Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
 fi
-
+echo ""
 # raw 0x04 0x26
 echo " Set Sensor Thresholds Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
-case $GT1b3$GT1b4$GT1b5 in
-'111'|'110'|'100')
-$i 0x26 $SID 0x38 0x00 0x00 0x00 0xfd 0xfe 0xff
+read LNC <<< $(printf %x $(((16#$GT2)+1)))
+read LCR <<< $(printf %x $(((16#$GT3)+1)))
+read LNR <<< $(printf %x $(((16#$GT4)+1)))
+read UNC <<< $(printf %x $(((16#$GT5)+1)))
+read UCR <<< $(printf %x $(((16#$GT6)+1)))
+read UNR <<< $(printf %x $(((16#$GT7)+1)))
+$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR
 if [ ! $?==0 ] ; then
-	$i 0x26 $SID 0x38 0x00 0x00 0x00 0xfd 0xfe 0xff >> SE.log
+	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
 	echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x26 $SID 0x38 0x00 0x00 0x00 0xfd 0xfe 0xff >> SE.log
-	read null null null null upper <<< $i 0x27 $SID 
-	if [ $upper -eq 'fd fe ff' ]|[ $upper -eq 'fd fe 00' ]|[ $upper -eq 'fd 00 00' ];then
-		echo -e " ${color_green}Set Sensor Thresholds Command success${color_reset}"|tee -a SE.log
-		echo " Restore default threshold..."
-		$i 0x26 $SID $GT1 $GT2 $GT3 $GT4 $GT5 $GT6 $GT7
-		echo " Restore finished..."
-	else
-		echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
-	fi
-fi;;
-esac
-case $GT1b6$GT1b7$GT1b8 in
-'111'|'110'|'100')
-$i 0x26 $SID 0x07 0x02 0x01 0x00 0x00 0x00 0x00
-if [ ! $?==0 ] ; then
-	$i 0x26 $SID 0x07 0x02 0x01 0x00 0x00 0x00 0x00 >> SE.log
-	echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x26 $SID 0x07 0x02 0x01 0x00 0x00 0x00 0x00 >> SE.log
-	read null lower <<< $i 0x27 $SID 
-	if [ $lower -eq '02 01 00 00 00 00' ]|[ $lower -eq '02 01 00 00 00 00' ]|[ $lower -eq '02 00 00 00 00 00' ];then
-		echo -e " ${color_green}Set Sensor Thresholds Command success${color_reset}"|tee -a SE.log
-		echo " Restore default threshold..."
-		$i 0x26 $SID $GT1 $GT2 $GT3 $GT4 $GT5 $GT6 $GT7
-		echo " Restore finished..."
-	else
-		echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
-	fi
-fi;;
-esac
+	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
+	echo " Please check the response of get threshold manually..."|tee -a SE.log
+	echo " $UNR $UCR $UNC $LNR $LCR $LNC check the vaule if support"
+	echo " $GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8 mask the threshold with '1' support."
+	ipmitool raw 0x04 0x27 $SID >> SE.log
+	echo -e " ${color_green}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
+	echo " Restore default threshold..."
+	$i 0x26 $SID 0x$GT1 0x$GT2 0x$GT3 0x$GT4 0x$GT5 0x$GT6 0x$GT7
+	echo " Restore finished..."
+fi
 echo ""
 
 # raw 0x04 0x28 
 echo " Set Sensor Event Enable Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
 read SEE1 SEE2 SEE3 SEE4 SEE5 SEE6 <<< $($i 0x29 $SID)
-$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 0x$SEE6
-if [ ! $? -eq '0' ] ; then
-	$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 0x$SEE6 >> SE.log
-	echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" | tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	if [[ "$($i 0x29 $SID)"=="0xc0 $SEE2 $SEE3 $SEE4 $SEE5 $SEE6" ]]
-		$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 0x$SEE6 >> SE.log
-		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
+if [ ! -z $SEE6 ];then
+	$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a 0x$SEE6
+	if [ ! $? -eq '0' ] ; then
+		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a 0x$SEE6 >> SE.log
+		echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" | tee -a SE.log
+		FailCounter=$(($FailCounter+1))
 	else
 		$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 0x$SEE6 >> SE.log
-		echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" |tee -a SE.log
+		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
+	fi
+else
+	$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a
+	if [ ! $? -eq '0' ] ; then
+		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a >> SE.log
+		echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" | tee -a SE.log
 		FailCounter=$(($FailCounter+1))
+	else
+		$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 >> SE.log
+		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
 	fi
 fi
-
+echo ""
 # raw 0x04 0x2a rearm all event status
 echo " Re-arm Sensor Events Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -534,7 +524,7 @@ else
 	$i 0x2b $SID >> SE.log
 	echo -e "${color_green} Get Sensor Event Status Command finished ${color_reset}"|tee -a SE.log
 fi
-
+echo ""
 # raw 0x04 0x2d
 echo " Get Sensor Reading Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -563,7 +553,7 @@ else
 		echo "reading/state unavailable (formerly “initial update in progress”). This bit is set to indicate that a ‘re-arm’ or ‘Set Event Receiver’ command has been used to request an update of the sensor status, and that update has not occurred yet. Software should use this bit to avoid getting an incorrect status while the first sensor update is in progress."|tee -a SE.log
 	fi
 	# check sensor is discrete or threshold type
-	if [ "$(ipmitool sdr get \"$SN\"|grep -i discrete)" ];then
+	if [ "$(ipmitool sdr get $SN |grep -i discrete)" ];then
 		if [ $GSR3b1 -eq '1' ];then
 			echo "state 7 asserted"|tee -a SE.log
 		fi
@@ -633,6 +623,8 @@ else
 	fi
 	echo -e "${color_green} Get Sensor Reading Command finished${color_reset}"|tee -a SE.log
 fi
+
+echo ""
 
 # raw 0x04 0x2f	
 echo " Get Sensor Type Command" |tee -a SE.log
@@ -762,7 +754,8 @@ else
 	'0b') echo " $SN is Other Units-based Sensor type(per units given in SDR)"|tee -a SE.log;;
 	'0c') echo " $SN is Memory type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 Correctable ECC / other correctable memory error
 		 01h
 		 Uncorrectable ECC / other uncorrectable memory error
@@ -1551,6 +1544,7 @@ else
 	esac
 	echo -e "${color_green} Get Sensor Type Command finished ${color_reset}"|tee -a SE.log
 fi
+echo ""
 # raw 0x04 0x2e 0x0c 0x0c OEM sensor type and discrete event/reading type
 echo " Set Sensor Type Command"|tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -1561,10 +1555,10 @@ if [ ! $?==0 ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x2e $SID 0x0c 0x0c >> SE.log
-	if [ "$($i 0x2f $SID)" -eq " 0c 0c" ];then
+	if [ "$($i 0x2f $SID)"=="0c 0c" ];then
 		echo -e "${color_green} Set Sensor Type Command finished${color_reset}"|tee -a SE.log
 		echo " Restore sensor type and event/reading type to default..."
-		$i 0x2e $SID $GST1 $GST2
+		$i 0x2e $SID 0x$GST1 0x$GST2
 		echo " Restore finished..."
 	else
 		echo -e " ${color_red} Set Sensor Type Command failed ${color_reset}"|tee -a SE.log

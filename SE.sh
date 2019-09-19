@@ -463,9 +463,9 @@ if [ ! $?==0 ] ; then
 else
 	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
 	echo " Please check the response of get threshold manually..."|tee -a SE.log
-	echo " $UNR $UCR $UNC $LNR $LCR $LNC check the vaule if support"
-	echo " $GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8 mask the threshold with '1' support."
-	ipmitool raw 0x04 0x27 $SID >> SE.log
+	echo " $UNR $UCR $UNC $LNR $LCR $LNC check the vaule if support"|tee -a SE.log
+	echo " $GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8 mask the threshold with '1' support."|tee -a SE.log
+	ipmitool raw 0x04 0x27 $SID |tee -a SE.log
 	echo -e " ${color_green}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
 	echo " Restore default threshold..."
 	$i 0x26 $SID 0x$GT1 0x$GT2 0x$GT3 0x$GT4 0x$GT5 0x$GT6 0x$GT7
@@ -484,7 +484,7 @@ if [ ! -z $SEE6 ];then
 		echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" | tee -a SE.log
 		FailCounter=$(($FailCounter+1))
 	else
-		$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 0x$SEE6 >> SE.log
+		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a 0x$SEE6 >> SE.log
 		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
 	fi
 else
@@ -494,7 +494,7 @@ else
 		echo -e "${color_red} Set Sensor Event Enable Command failed ${color_reset}" | tee -a SE.log
 		FailCounter=$(($FailCounter+1))
 	else
-		$i 0x28 $SID 0xc0 0x$SEE2 0x$SEE3 0x$SEE4 0x$SEE5 >> SE.log
+		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a >> SE.log
 		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
 	fi
 fi
@@ -649,7 +649,8 @@ else
 	04) echo " $SN is Fan type"|tee -a SE.log;;
 	05) echo " $SN is Physical Security type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 General Chassis Intrusion
 		 01h
 		 Drive Bay intrusion
@@ -666,7 +667,8 @@ else
 		 FAN area intrusion (supports detection of hot plug fan tampering)"|tee -a SE.log;;
 	06) echo " $SN is Platform Security Violation Attempt type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Secure Mode (Front Panel Lockout) Violation attempt.
 		 01h
 		 Pre-boot Password Violation - user password.
@@ -680,7 +682,8 @@ else
 		 Out-of-band Access Password Violation."|tee -a SE.log;;
 	07) echo " $SN is Processor type"
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 IERR
 		 01h
 		 Thermal Trip
@@ -708,7 +711,8 @@ else
 		 Correctable Machine Check Error"|tee -a SE.log;;
 	08) echo " $SN is Power Supply type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Presence detected
 		 01h
 		 Power Supply Failure detected
@@ -734,7 +738,8 @@ else
 		 Power Supply Inactive (in standby state). Power supply is in a standby state where its main outputs have been automatically deactivated because the load is being supplied by one or more other power supplies."|tee -a SE.log;;
 	09) echo " $SN is Power Unit type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Power Off / Power Down
 		 01h
 		 Power Cycle
@@ -782,7 +787,8 @@ else
 		 Critical Overtemperature. Memory device has entered a critical overtemperature state, exceeding specified operating conditions. Memory devices in this state may produce errors or become inaccessible."|tee -a SE.log;;
 	'0d') echo " $SN is Drive Slot type(Bay)"|tee -a SE.log
 		  echo " Event Offset" |tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
          Drive Presence
 		 01h
 		 Drive Fault
@@ -803,7 +809,8 @@ else
 	'0e') echo " $SN is POST Memory Resize type";;
 	'0f') echo " $SN is System Firmware Progress type(formerly POST Error)"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 System Firmware Error (POST Error)
 		 The Event Data 2 field can be used to provide an event extension code, with the following definition:
 		 Event Data 2
@@ -857,7 +864,8 @@ else
 			 1Ah to FFh reserved"|tee -a SE.log;;
 	10) echo " SN is Event Logging Disabled type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Correctable Memory Error Logging Disabled
 		 Event Data 2
 			 [7:0] - Memory module/device (e.g. DIMM/SIMM/RIMM) identification, relative to the entity that the sensor is associated with (if SDR provided for this sensor).
@@ -893,7 +901,8 @@ else
 			 [6:0] - reserved"|tee -a SE.log;;
 	11) echo " $SN is Watchdog 1 type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 BIOS Watchdog Reset
 		 01h
 		 OS Watchdog Reset
@@ -911,7 +920,8 @@ else
 		 OS Watchdog pre-timeout Interrupt, non-NMI"|tee -a SE.log;;
 	12) echo " $SN is System Event type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 System Reconfigured
 		 01h
 		 OEM System Boot Event
@@ -957,7 +967,8 @@ else
 			 1h = SDR Timestamp Clock updated."|tee -a SE.log;;
 	13) echo " $SN is Critical Interrupt type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Front Panel NMI / Diagnostic Interrupt
 		 01h
 		 Bus Timeout
@@ -983,7 +994,8 @@ else
 		 Bus Degraded (bus operating in a degraded performance state)"|tee -a SE.log;;
 	14) echo " $SN is Button / Switch type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Power Button pressed
 		 01h
 		 Sleep Button pressed
@@ -999,7 +1011,8 @@ else
 	18) echo " $SN is Chassis type"|tee -a SE.log;;
 	19) echo " $SN is Chip Set"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Soft Power Control Failure (chip set did not respond to BMC request to change system power state). This offset is similar to offset 05h for a power unit, except that the power unit event is only related to a failure to power up, while this event corresponds to any system power state change directly requested via the BMC.
 		 Event Data 2
 			 The Event Data 2 field for this command can be used to provide additional information on the type of failure with the following definition:
@@ -1040,14 +1053,16 @@ else
 	'1a') echo " $SN is Other FRU type"|tee -a SE.log;;
 	'1b') echo " $SN is Cable / Interconnect type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 Cable/Interconnect is connected
 		 01h
 		 Configuration Error - Incorrect cable connected / Incorrect interconnection"|tee -a SE.log;;
 	'1c') echo " $SN is Terminator type"|tee -a SE.log;;
 	'1d') echo " $SN is System Boot / Restart Initiated type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 Initiated by power up (this would typically be generated by BIOS/EFI)
 		 01h
 		 Initiated by hard reset (this would typically be generated by BIOS/EFI)
@@ -1070,7 +1085,8 @@ else
 			Channel number used to deliver command that generated restart, per Get System Restart Cause command."|tee -a SE.log;;
 	'1e') echo " $SN is Boot Error type"|tee -a SE.log
 		  echo " Event Offset"
-		  echo " 00h
+		  echo " 
+		 00h
 		 No bootable media
 		 01h
 		 Non-bootable diskette left in drive
@@ -1082,7 +1098,8 @@ else
 		 Timeout waiting for user selection of boot source"|tee -a SE.log;;
 	'1f') echo " $SN is Base OS Boot / Installation Status type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 A: boot completed
 		 01h
 		 C: boot completed
@@ -1106,7 +1123,8 @@ else
 		 Base OS/Hypervisor Installation failed"|tee -a SE.log;;
 	20) echo " $SN is OS Stop / Shutdown type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Critical stop during OS load / initialization. Unexpected error during system startup. Stopped waiting for input or power cycle/reset.
 		 01h
 		 Run-time Critical Stop (a.k.a. ‘core dump’, ‘blue screen’)
@@ -1120,7 +1138,8 @@ else
 		 Agent Not Responding. Graceful shutdown request to agent via BMC did not occur due to missing or malfunctioning local agent."|tee -a SE.log;;
 	21) echo " $SN is Slot / Connector type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Fault Status asserted
 		 01h
 		 Identify Status asserted
@@ -1161,7 +1180,8 @@ else
 			 7:0 Slot/Connector Number"|tee -a SE.log;;
 	22) echo " $SN is System ACPI Power State type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 S0 / G0 “working”
 		 01h
 		 S1 “sleeping with system h/w & processor context maintained”
@@ -1191,7 +1211,8 @@ else
 		 Unknown"|tee -a SE.log;;
 	23) echo " $SN is Watchdog 2 type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Timer expired, status only (no action, no interrupt)
 		 01h
 		 Hard Reset
@@ -1222,7 +1243,8 @@ else
 			 all other = reserved"|tee -a SE.log;;
 	24) echo " $SN is Platform Alert type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 platform generated page
 		 01h
 		 platform generated LAN alert
@@ -1232,7 +1254,8 @@ else
 		 platform generated SNMP trap, OEM format"|tee -a SE.log;;
 	25) echo " $SN is Entity Presence type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Entity Present. This indicates that the Entity identified by the Entity ID for the sensor is present.
 		 01h
 		 Entity Absent. This indicates that the Entity identified by the Entity ID for the sensor is absent. If the entity is absent, system management software should consider all sensors associated with that Entity to be absent as well - and ignore those sensors.
@@ -1241,13 +1264,15 @@ else
 	26) echo " $SN is Monitor ASIC / IC type"|tee -a SE.log;;
 	27) echo " $SN is LAN type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo "  
+		 00h
 		 LAN Heartbeat Lost
 		 01h
 		 LAN Heartbeat"|tee -a SE.log;;
 	28) echo " $SN is Management Subsystem Healthtype"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 sensor access degraded or unavailable (A sensor that is degraded will still return valid results, but may be operating with a slower response time, or may not detect certain possible states. A sensor that is unavailable is not able to return any results (scanning is disabled,)
 		 01h
 		 controller access degraded or unavailable (The ability to access the controller has been degraded, or access is unavailable, but the party that is doing the monitoring cannot determine which.)
@@ -1278,7 +1303,8 @@ else
 			 [0] - reserved."|tee -a SE.log;;
 	29) echo " $SN is Battery type"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 battery low (predictive failure)
 		 01h
 		 battery failed battery presence detected
@@ -1286,7 +1312,8 @@ else
 		 battery presence detected"|tee -a SE.log;;
 	'2a') echo " $SN is Session Audit type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 Session Activated
 		 01h
 		 Session Deactivated
@@ -1310,7 +1337,8 @@ else
 			 3:0 Channel number that session was activated/deactivated over. Use channel number that session was activated over if a session was closed for an unspecified reason, a timeout, or a configuration change."|tee -a SE.log;;
 	'2b') echo " $SN is Version Change type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 Hardware change detected with associated Entity. Informational. This offset does not imply whether the hardware change was successful or not. Only that a change occurred.
 		 01h
 		 Firmware or software change detected with associated Entity. Informational. Success or failure not implied.
@@ -1354,7 +1382,8 @@ else
 			 17h board/FRU hardware configuration change (e.g. strap, jumper, cable change, etc.)"|tee -a SE.log;;
 	'2c') echo " $SN is FRU State type"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 FRU Not Installed
 		 01h
 		 FRU Inactive (in standby or ‘hot spare’ state)
@@ -1392,7 +1421,8 @@ else
 	case $GST2 in
 	01) echo " $SN is Threshold(0x01) Event/Reading class"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Lower Non-critical - going low
 		 01h
 		 Lower Non-critical - going high
@@ -1419,7 +1449,8 @@ else
 	02) echo " $SN is Discrete(0x02) Event/Reading class"|tee -a SE.log
 		echo " DMI-based “Usage State” STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Transition to Idle
 		 01h
 		 Transition to Active
@@ -1428,35 +1459,40 @@ else
 	03) echo " $SN is ‘digital’ Discrete(0x03) Event/Reading class"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 State Deasserted
 		 01h
 		 State Asserted"|tee -a SE.log;;
 	04) echo " $SN is ‘digital’ Discrete(0x04) Event/Reading class"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Predictive Failure deasserted
 		 01h
 		 Predictive Failure asserted"|tee -a SE.log;;
 	05) echo " $SN is ‘digital’ Discrete(0x05) Event/Reading class"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Limit Not Exceeded
 		 01h
 		 Limit Exceeded"|tee -a SE.log;;
 	06) echo " $SN is ‘digital’ Discrete(0x06) Event/Reading class"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Performance Met
 		 01h
 		 Performance Lags"|tee -a SE.log;;
 	07) echo " $SN is Discrete(0x07) Event/Reading class"|tee -a SE.log
 		echo " SEVERITY EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 transition to OK
 		 01h
 		 transition to Non-Critical from OK
@@ -1477,21 +1513,24 @@ else
 	08) echo " $SN is ‘digital’ Discrete(0x08) Event/Reading class"|tee -a SE.log
 		echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Device Removed / Device Absent
 		 01h
 		 Device Inserted / Device Present"|tee -a SE.log;;
 	09) echo " $SN is ‘digital’ Discrete(0x09) Event/Reading class"|tee -a SE.log
 		echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
-		echo " 00h
+		echo " 
+		 00h
 		 Device Disabled
 		 01h
 		 Device Enabled"|tee -a SE.log;;
 	'0a') echo " $SN is Discrete(0x0a) Event/Reading class"|tee -a SE.log
 		  echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		  echo " Generic Offset"|tee -a SE.log
-		  echo " 00h
+		  echo " 
+		 00h
 		 transition to Running
 		 01h
 		 transition to In Test
@@ -1512,7 +1551,8 @@ else
 	'0b') echo " $SN is Discrete(0x0b) Event/Reading class"|tee -a SE.log
 		  echo " Other AVAILABILITY STATUS STATES"|tee -a SE.log
 		  echo " Generic Offset"|tee -a SE.log
-		  echo " Redundancy States
+		  echo " 
+		 Redundancy States
 		 00h
 		 Fully Redundant (formerly “Redundancy Regained”) Indicates that full redundancy has been regained.
 		 01h
@@ -1530,9 +1570,10 @@ else
 		 07h
 		 Redundancy Degraded from Non-redundant Unit has regained some resource(s) and is redundant but not fully redundant. Entered from Non-redundant:Sufficient Resources or Non-redundant:Insufficient Resources."|tee -a SE.log;;
 	'0c') echo " $SN is Discrete(0x0c) Event/Reading class"|tee -a SE.log
-		echo " Other AVAILABILITY STATUS STATES"|tee -a SE.log
+		 echo " Other AVAILABILITY STATUS STATES"|tee -a SE.log
 		 echo " Generic Offset"|tee -a SE.log
-		 echo " ACPI Device Power States
+		 echo " 
+		 ACPI Device Power States
 		 00h
 		 D0 Power State
 		 01h

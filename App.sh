@@ -18,7 +18,7 @@ FailCounter=0
 #$((#16$hex))
 ##Convert Hex to Binary
 D2B=({0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1})
-function CHB () {                                                                              
+function H2B () {                                                                              
         L=${1:0:1}                                                                             
         R=${1:1:1}                                                                             
         if grep '^[[:digit:]]*$' <<< "$L" ; then                                               

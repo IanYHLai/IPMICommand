@@ -5,21 +5,22 @@ color_reset='\e[0m'
 color_green='\e[32m'
 color_red='\e[31m'
 color_convert='\e[7m'
-
+color_blue='\e[34m'
 echo -e "$color_redRemove and backup the previous log as date format...${color_reset}"
 if [ -f "SE.log" ]; then
 	cp SE.log $(date +%Y%m%d_%T)_SE.log && rm -f SE.log
 fi
 date |tee -a SE.log
 echo -e "${color_convert}*This script will test one of the sensors to verify the command implemented or not.*${color_reset}"
-echo "Start S/E function raw command..."
+read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
+echo "$USER start S/E testing in $OSInfo "|tee -a chassis.log
 i="ipmitool raw 0x04"
 sleep 1
 read -p "Please input BMC channel number(with 0xFF format) :" Ch
-read -p "Please input sensor name for testing(Has Hysteresis defined) :" SN 
+read -p "Please input sensor name for testing(with no quotes like CPU_CUPS) :" SN 
 read -p "Please input sensor type of $SN(with 0xFF format) :" ST
 read -p "Please input event type of $SN(with 0xFF format) :" ET
-read -p "Please input alert destination IPaddr(IPv4) :" CliIP
+read -p "Please input alert destination IPaddr(IPv4 like 127.0.0.1) :" CliIP
 read -p "Please input alert destination MACaddr(with '-' format like 01-02-03-04-05-06) :" CliMAC
 # Split the ipaddr to several variable
 IFS=. read ip1 ip2 ip3 ip4 <<< "$CliIP" # set delimiter IFS='.' then pass the string $CliIP to read ip1-ip4 
@@ -48,11 +49,11 @@ CliMAC="0x$mac1 0x$mac2 0x$mac3 0x$mac4 0x$mac5 0x$mac6"
 SID=0x$(ipmitool sdr elist | grep -i "$SN" | awk -F\| '{print$2}' | cut -c 2-3) #with SN (sensor name) to search the sdr elist then cut the sensor ID to perform like 0xXX and save into $SID.
 
 FailCounter=0
-echo "channel=$Ch SensorName=$SN SensorType=$ST EventType=$ET ip=$CliIP Mac=$CliMAC"
+echo "channel=$Ch SensorName=$SN SensorID=$SID SensorType=$ST EventType=$ET Client ip=$CliIP Client Mac=$CliMAC"|tee -a SE.log
 
 ## Start the test
 # raw 0x04 0x00
-echo ""
+echo ""|tee -a SE.log
 echo " Set Event Receiver" |tee -a  SE.log
 echo " Response below :" |tee -a  SE.log
 read ER1 ER2 <<< $($i 0x01)
@@ -62,15 +63,15 @@ if [ ! $? -eq '0' ] ; then
 	echo -e "${color_red} Set Event Receiver failed${color_reset}" | tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x00 0x20 0x00>> SE.log
-	echo -e "${color_green} Set Event Receiver to Slave Address=0x20 and LUN=0x00 finished${color_reset} " |tee -a SE.log
+	$i 0x00 0x20 0x00 >> SE.log
+	echo -e "${color_blue} Set Event Receiver to Slave Address=0x20 and LUN=0x00 finished${color_reset} " |tee -a SE.log
 	echo " Restore default event receiver value..."
 	$i 0x00 0x$ER1 0x$ER2
 	echo " Restore finished..."
 fi
 
 # raw 0x04 0x01
-echo ""
+echo " "|tee -a SE.log
 echo " Get Event Receiver" |tee -a  SE.log
 echo " Response below :" |tee -a  SE.log
 $i 0x01
@@ -87,16 +88,16 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	if [ $ER1=='ff' ];then
-		echo -e " Event Message Generation has been disabled."|tee -a SE.log
+		echo -e " Event Message Generation has been ${color_red}disabled${color_reset}."|tee -a SE.log
 	else
-		echo -e " Event Receiver Slave Address = 0x$ER1"|tee -a SE.log
+		echo -e " Event Receiver Slave Address = ${color_green}0x$ER1${color_reset}"|tee -a SE.log
 	fi
-	echo -e " Event Receiver LUN = 0x$ER2"|tee -a SE.log
-	echo -e " ${color_green}Get Event Receiver finished ${color_reset}" |tee -a  SE.log
+	echo -e " Event Receiver LUN = ${color_green}0x$ER2${color_reset}"|tee -a SE.log
+	echo -e " ${color_blue}Get Event Receiver finished ${color_reset}" |tee -a  SE.log
 fi
 
 # raw 0x04 0x02 This command need to check the sensor name , ID, type, event data suggest that manual testing for high testing quality
-echo ""
+echo ""|tee -a SE.log
 echo " Platform Event Message Command" |tee -a  SE.log
 echo " Response below :" |tee -a  SE.log
 $i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00
@@ -106,17 +107,18 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
-	echo -e " ${color_green}Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please...${color_reset}" |tee -a  SE.log
+	echo -e " ${color_blue}Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please...${color_reset}" |tee -a  SE.log
 	ipmitool -v sel elist |tee -a SE.log
 fi
 
 # raw 0x04 0x10
+echo ""|tee -a SE.log
 echo " Get PEF Capabilities Command" |tee -a  SE.log
 echo " Response below :" |tee -a SE.log
 $i 0x10
 if [ ! $? -eq '0' ] ; then
-	echo -e " ${color_red}Get PEF Capabilities Command failed ${color_reset}"|tee -a SE.log
 	$i 0x10 >> SE.log
+	echo -e " ${color_red}Get PEF Capabilities Command failed ${color_reset}"|tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x10 >> SE.log
@@ -127,41 +129,41 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	
-	echo " The PEF version is $PC1\h, it's LSN first, 51h > version 1.5"|tee -a SE.log
+	echo -e " The PEF version is ${color_green}$PC1${color_reset}(hex), it's LSN first, 51h > version 1.5"|tee -a SE.log
 	if [ $PC2b1 -eq '1' ];then
-		echo " OEM Event Record Filtering supported"|tee -a SE.log
+		echo -e " ${color_green}OEM Event Record Filtering supported${color_reset}"|tee -a SE.log
 	else 
-		echo " OEM Event Record Filtering not supported"|tee -a SE.log
+		echo -e " ${color_red}OEM Event Record Filtering not supported${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b2 -eq '1' ];then
 		echo -e "${color_red}The bit 6 is holding, this bit is reserved, check the spec please...${color_reset}"|tee -a SE.log
 	fi
-	echo " Action Suport :"|tee -a SE.log
+	echo -e " ${color_convert}Action Suport :${color_reset}"|tee -a SE.log
 	if [ $PC2b3 -eq '1' ];then
-		echo " Diagnostic interrupt"|tee -a SE.log
+		echo -e " ${color_green}Diagnostic interrupt${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b4 -eq '1' ];then
-		echo " OEM action"|tee -a SE.log
+		echo -e " ${color_green}OEM action${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b5 -eq '1' ];then
-		echo " Power cycle"|tee -a SE.log
+		echo -e " ${color_green}Power cycle${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b6 -eq '1' ];then
-		echo " Reset"|tee -a SE.log
+		echo -e " ${color_green}Reset${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b7 -eq '1' ];then
-		echo " Power down"|tee -a SE.log
+		echo -e " ${color_green}Power down${color_reset}"|tee -a SE.log
 	fi
 	if [ $PC2b8 -eq '1' ];then
-		echo " Alert"|tee -a SE.log
+		echo -e " ${color_green}Alert${color_reset}"|tee -a SE.log
 	fi
 	echo ""|tee -a SE.log
-	echo -e "Number of event filter table entries = $((16#$PC3))"|tee -a SE.log
-	echo -e "${color_green} Get PEF Capabilities Command finished${color_reset}"|tee -a SE.log
+	echo -e " Number of event filter table entries = ${color_green}$((16#$PC3))${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get PEF Capabilities Command finished${color_reset}"|tee -a SE.log
 fi
 
 # raw 0x04 0x11
-echo ""
+echo ""|tee -a SE.log
 echo " Arm PEF Postpone Timer Command"|tee -a SE.log
 echo " Response below :" |tee -a SE.log
 $i 0x11 0x05
@@ -171,12 +173,13 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x11 0x05 >> SE.log
-	echo -e "${color_green} Set Arm PEF Postpone Timer 5 seconds finished ${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Set Arm PEF Postpone Timer 5 seconds finished ${color_reset}"|tee -a SE.log
 fi
 
 # raw 0x04 0x12
+echo ""|tee -a Se.log
 echo " Set PEF Configuration Parameters Command" |tee -a SE.log
-echo " Set all PEF action disable "|tee -a SE.log
+echo " Set all PEF action disable..."|tee -a SE.log
 echo " Response below :" |tee -a  SE.log
 # Set all PEF action disable
 $i 0x12 0x02 0x00
@@ -185,16 +188,20 @@ if [ ! $? -eq '0' ] ; then
 	echo -e " ${color_red}Set all PEF action disable failed ${color_reset}"|tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	if [ ! "$($i 0x13 0x02 0x00 0x00)" == " 11 00" ]; then
+	if [ ! "$($i 0x13 0x02 0x00 0x00)"=="11 00" ]; then
 		echo -e "${color_red} Set all PEF action disable failed the response of get configuration doesn't match the setting${color_reset}"|tee -a SE.log
 		FailCounter=$(($FailCounter+1))
 	else
 		$i 0x12 0x02 0x00 >> SE.log
-		echo -e "${color_green} Set all PEF action disable finished${color_reset}"|tee -a SE.log	
+		echo -e "${color_blue} Set all PEF action disable finished${color_reset}"|tee -a SE.log	
 	fi
+	echo " Restore PEF action default setting..."
+	$i 0x12 0x02 0x3f
+	echo " Restore PEF action default finished..."
 fi
 
 # raw 0x04 0x13
+echo ""|tee -a SE.log
 echo " Get PEF Configuration Parameters Command "|tee -a SE.log
 echo " Get PEF set in progress state "|tee -a SE.log
 echo " Response below :"|tee -a SE.log
@@ -212,20 +219,21 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	$i 0x13 0x00 0x00 0x00 >> SE.log
-	echo -e " The parameter revision is $GP1 (MSN=present revision. LSN = oldest revision parameter is backward compatible with. 11h for parameters in this specification.)"|tee -a SE.log
+	echo -e " The parameter revision is ${color_green}$GP1${color_reset}(MSN=present revision. LSN = oldest revision parameter is backward compatible with. 11h for parameters in this specification.)"|tee -a SE.log
 	case $GP2b7$GP2b8 in 
-		00) echo -e " Now is set complete state"|tee -a SE.log;;
-		01) echo -e " Now is set in progress state"|tee -a SE.log;;
-		10) echo -e " Now is commit write state"|tee -a SE.log;;
+		00) echo -e " PEF config is ${color_green}set complete state${color_reset}"|tee -a SE.log;;
+		01) echo -e " PEF config is ${color_green}set in progress state${color_reset}"|tee -a SE.log;;
+		10) echo -e " PEF config is ${color_green}commit write state${color_reset}"|tee -a SE.log;;
 		11) echo -e "${color_red} The state now is reserved please check whether the spec defined or not...${color_reset}"|tee -a SE.log;;
 	esac
-	echo -e "${color_green} Get PEF set in progress state finished${color_reset}"|tee -a SE.log	
+	echo -e "${color_blue} Get PEF set in progress state finished${color_reset}"|tee -a SE.log	
 fi
 
 # raw 0x04 0x14
+echo ""|tee -a SE.log
 echo " Set Last Processed Event ID Command"|tee -a SE.log
-echo " Response below :"|tee -a SE.log
 echo " Set Last Processed Event ID of BMC to ffff "|tee -a SE.log
+echo " Response below :"|tee -a SE.log
 $i 0x14 0x01 0xff 0xff
 if [ ! $? -eq '0' ] ; then
 	$i 0x14 0x01 0xff 0xff>> SE.log
@@ -233,9 +241,9 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x14 0x01 0xff 0xff >> SE.log
-	echo -e "${color_green} Set Last Processed Event ID of BMC to ffff finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Set Last Processed Event ID of BMC to ffff finished${color_reset}"|tee -a SE.log
 fi
-echo ""
+echo ""|tee -a SE.log
 # raw 0x04 0x15
 echo " Get Last Processed Event ID Command" |tee -a  SE.log
 echo " Response below :" |tee -a SE.log
@@ -247,14 +255,14 @@ if [ ! $? -eq '0' ] ; then
 else
 	if [ $($i 0x15 |awk '{print$9$10}') == "ffff" ]; then
 		$i 0x15 >> SE.log
-		echo -e "${color_green} Get Last Processed Event ID Command finished${color_reset}"|tee -a SE.log
+		echo -e "${color_blue} Get Last Processed Event ID Command finished${color_reset}"|tee -a SE.log
 	else
 		$i 0x15 >> SE.log
 		echo -e "${color_red} Get Last Processed Event ID Command finished , but Set Last Processed Event ID Command failed ${color_reset}"|tee -a SE.log
 		FailCounter=$(($FailCounter+1))
 	fi
 fi
-echo ""
+echo ""|tee -a SE.log
 # raw 0x04 0x16
 echo " Alert Immediate Command" |tee -a SE.log
 echo " Response below :" |tee -a  SE.log
@@ -266,10 +274,10 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x16 $Ch 0x80 0x00 >> SE.log
-	echo -e "${color_green} Send alert Immediately to destination selector 1 finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Send alert Immediately to destination selector 1 finished${color_reset}"|tee -a SE.log
 fi
-# 
-echo ""
+
+echo ""|tee -a SE.log
 # raw 0x04 0x20
 echo " Get Device SDR Info Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -287,13 +295,13 @@ else
 	done
 	read GDs1 null <<< $($i 0x20 0x00)
 	$i 0x20 0x01 >> SE.log
-	echo -e " There are $((16#$GDs1)) sensors implemented on LUN in SUT."|tee -a SE.log
-	echo -e " There are $((16#$GD1)) SDRs in SUT."|tee -a SE.log
+	echo -e " There are ${color_green}$((16#$GDs1))${color_reset} sensors implemented on LUN in SUT."|tee -a SE.log
+	echo -e " There are ${color_green}$((16#$GD1))${color_reset} SDRs in SUT."|tee -a SE.log
 	if [ $GD2b1 -eq '1' ];then 
-		echo " Dynamic sensor population. This device may have its sensor population vary during ‘run time’ (defined as any time other that when an install operation is in progress)."|tee -a SE.log
-		echo " The Sensor Population Change Indicator is $GD3$GD4$GD5$GD6 (LS byte first.Four byte timestamp, or counter check the spec please.)"
+		echo -e " ${color_green}Dynamic sensor population${color_reset}. This device may have its sensor population vary during ‘run time’ (defined as any time other that when an install operation is in progress)."|tee -a SE.log
+		echo -e " The Sensor Population Change Indicator is ${color_green}$GD3$GD4$GD5$GD6${color_resset} (LS byte first.Four byte timestamp, or counter check the spec please.)"
 	else 
-		echo " Static sensor population. The number of sensors handled by this device is fixed, and a query shall return records for all sensors."|tee -a SE.log
+		echo -e " ${color_green}Static sensor population${color_reset}. The number of sensors handled by this device is fixed, and a query shall return records for all sensors."|tee -a SE.log
 	fi
 	if [ $GD2b5 -eq '1' ];then
 		echo "LUN 3 has sensors."|tee -a SE.log
@@ -307,10 +315,10 @@ else
 	if [ $GD2b8 -eq '1' ];then
 		echo "LUN 0 has sensors."|tee -a SE.log
 	fi
-	echo -e "${color_green} Get Device SDR count Info SDR count finished.${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get Device SDR count Info SDR count finished.${color_reset}"|tee -a SE.log
 fi
 
-echo ""
+echo ""|tee -a SE.log
 
 # raw 0x04 0x21  0x0a 0x23 有差?
 echo " Get Device SDR Command" |tee -a  SE.log
@@ -322,9 +330,9 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x21 0x00 0x00 0x00 0x00 0x00 0xff >> SE.log
-	echo -e " Get Device SDR Command finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get Device SDR Command finished${color_reset}"|tee -a SE.log
 fi
-echo ""
+echo ""|tee -a SE.log
 # raw 0x04 0x22
 echo " Reserve Device SDR Repository Command"|tee -a SE.log
 echo " Response below :" |tee -a  SE.log
@@ -335,27 +343,43 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x22 >> SE.log
-	read RS1 RS2 <<< $($i 0x22)
-	for j in RS{1,2}; do
+	echo -e "${color_blue} Reserve Device SDR Repository Command finished${color_reset}"|tee -a SE.log
+fi
+echo ""|tee -a SE.log
+
+# raw 0x04 0x23
+echo " Get Sensor Reading Factors Command"|tee -a SE.log
+echo " Response below :" |tee -a SE.log
+$i 0x23 $SID 0xff
+if [ ! $? == 0 ] ; then
+	$i 0x23 $SID 0xff >> SE.log
+	echo -e "${color_red} Get Sensor $SID Reading Factors Command failed ${color_reset}"|tee -a SE.log
+	FailCounter=$(($FailCounter+1))
+else
+	$i 0x23 $SID 0xff >> SE.log
+	read SRF1 SRF2 SRF3 SRF4 SRF5 SRF6 SRF7 <<< $($i 0x23 $SID 0xff)
+	for j in SRF{1..7}; do
 		eval temp=\$$j
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
-	echo -e "${color_green} Reserve Device SDR Repository Command finished${color_reset}"|tee -a SE.log
+	read SRR null <<< $($i 0x2d $SID)
+	echo " Linear formula : y = L [ (M * x + (B * 10^K1)) * 10^K2 ] units"|tee -a SE.log
+	echo " Tolerance formula : y = L[Mx/2 * 10K2 ] units"|tee -a SE.log
+	echo -e " Next reading is ${color_green}$SRF1${color_reset}, indicates the next reading for which a different set of sensor reading factors is defined"|tee -a SE.log
+	echo -e " Parameter 'x' = ${color_green}$((16#$SRR))${color_reset}"|tee -a SE.log
+	echo -e " Parameter 'M' = ${color_green}$((2#$SRF3b1$SRF3b2$SRF2b1$SRF2b2$SRF2b3$SRF2b4$SRF2b5$SRF2b6$SRF2b7$SRF2b8))${color_reset}"|tee -a SE.log
+	echo -e " Parameter 'B' = ${color_green}$((2#$SRF5b1$SRF5b2$SRF4b1$SRF4b2$SRF4b3$SRF4b4$SRF4b5$SRF4b6$SRF4b7$SRF4b8))${color_reset}"|tee -a SE.log
+	K1=$((2#$SRF7b5$SRF7b6$SRF7b7$SRF7b8))
+	K2=$((2#$SRF7b1$SRF7b2$SRF7b3$SRF7b4))
+	[ "$K2" -gt 127 ] && ((K2=$K2-256)); echo -e " Parameter 'K2' = ${color_green}$K2${color_reset}"|tee -a SE.log
+	[ "$K1" -gt 127 ] && ((K1=$K1-256)); echo -e " Parameter 'K1' = ${color_green}$K1${color_reset}"|tee -a SE.log
+	echo -e " Tolerance in +/- ½raw counts is ${color_green}$((2#$SRF3b3$SRF3b4$SRF3b5$SRF3b6$SRF3b7SRF3b8))${color_reset}"|tee -a SE.log
+	echo -e " Basic Sensor Accuracy in 1/100 percent is ${color_green}$((2#$SRF6b1$SRF6b2$SRF6b3$SRF6b4$SRF5b3$SRF5b4$SRF5b5$SRF5b6$SRF5b7$SRF5b8))${color_reset}" 
+	echo -e " ${color_blue}Get Sensor $SID Reading Factors Command finished ${color_reset}"|tee -a SE.log	
 fi
-echo ""
-# raw 0x04 0x23
-#echo " Get Sensor Reading Factors Command"|tee -a SE.log
-#echo " Response below :" |tee -a SE.log
-#$i 0x23 $SID
-#if [ ! $? == 0 ] ; then
-#	$i 0x23 0x10 >> SE.log
-#	echo -e "${color_red} Get Sensor Reading Factors Command failed ${color_reset}"|tee -a SE.log
-#	FailCounter=$(($FailCounter+1))
-#else
-#	$i 0x23 0x10 >> SE.log
-#	echo -e " ${color_green}Get Sensor Reading Factors Command finished ${color_reset}"|tee -a SE.log
-#fi
+
+echo ""|tee -a SE.log
 
 # raw 0x04 0x24
 echo " Set Sensor Hysteresis Command" |tee -a SE.log
@@ -368,14 +392,14 @@ if [ ! $? -eq '0' ] ; then
 	echo -e "${color_red} Set Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
 	FailCounter=$(($FailCounter+1))
 else
-	$i 0x24 $SID 0xff 0x00 0x00>> SE.log
-	echo -e "${color_green} Set Sensor Hysteresis Command finished ${color_reset}"|tee -a SE.log
+	$i 0x24 $SID 0xff 0x00 0x00 >> SE.log
+	echo -e "${color_blue} Set Sensor Hysteresis Command finished ${color_reset}"|tee -a SE.log
 	echo " Restore default setting...."
 	$i 0x24 $SID 0xff 0x$resH1 0x$resH2 
 	echo " Restore setting fnished...."
 fi
 
-echo ""
+echo ""|tee -a SE.log
 
 # raw 0x04 0x25
 echo " Get Sensor Hysteresis Command"|tee -a  SE.log
@@ -394,18 +418,18 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	if [ ! $GS1 -eq '0' ];then
-		echo " Positive-going Threshold Hysteresis = $GS1"|tee -a SE.log
+		echo -e " Positive-going Threshold Hysteresis = ${color_green}$GS1${color_reset}"|tee -a SE.log
 	else
 		echo " Positive-going Threshold Hysteresis is N/A"|tee -a SE.log
 	fi
 	if [ ! $GS2 -eq '0' ];then
-		echo " Negative-going Threshold Hysteresis = $GS2"|tee -a SE.log
+		echo -e " Negative-going Threshold Hysteresis = ${color_green}$GS2${color_reset}"|tee -a SE.log
 	else
 		echo " Negative-going Threshold Hysteresis is N/A"|tee -a SE.log
 	fi
-	echo -e "${color_green} Get Sensor Hysteresis Command finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get Sensor Hysteresis Command finished${color_reset}"|tee -a SE.log
 fi
-echo ""
+echo ""|tee -a SE.log
 
 # raw 0x04 0x27
 echo " Get Sensor Thresholds Command " | tee -a SE.log
@@ -423,29 +447,30 @@ else
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
-	echo " $SN Readable threshold : "|tee -a SE.log
+	echo -e " ${color+green}$SN${color_reset} Readable threshold : "|tee -a SE.log
 	if [ $GT1b3 -eq '1' ];then
-		echo " Upper non-recoverable threshold = $((16#$GT7)) (dec)"|tee -a SE.log
+		echo -e " Upper non-recoverable threshold = ${color_green}$((16#$GT7))${color_reset}(dec)"|tee -a SE.log
 	fi
 	if [ $GT1b4 -eq '1' ];then
-		echo " upper critical threshold = $((16#$GT6)) (dec)"|tee -a SE.log
+		echo -e " upper critical threshold = ${color_green}$((16#$GT6))${color_reset}(dec)"|tee -a SE.log
 	fi
 	if [ $GT1b5 -eq '1' ];then
-		echo " upper non-critical threshold = $((16#$GT5)) (dec)"|tee -a SE.log
+		echo -e " upper non-critical threshold = ${color_green}$((16#$GT5))${color_reset}(dec)"|tee -a SE.log
 	fi
 	if [ $GT1b6 -eq '1' ];then
-		echo " lower non-recoverable threshold = $((16#$GT4)) (dec)"|tee -a SE.log
+		echo -e " lower non-recoverable threshold = ${color_green}$((16#$GT4))${color_reset}(dec)"|tee -a SE.log
 	fi
 	if [ $GT1b7 -eq '1' ];then
-		echo " lower critical threshold = $((16#$GT3)) (dec)"|tee -a SE.log
+		echo -e " lower critical threshold = ${color_green}$((16#$GT3))${color_reset}(dec)"|tee -a SE.log
 	fi
 	if [ $GT1b8 -eq '1' ];then
-		echo " lower non-critical threshold = $((16#$GT2)) (dec)"|tee -a SE.log
+		echo -e " lower non-critical threshold = ${color_green}$((16#$GT2))${color_reset}(dec)"|tee -a SE.log
 	fi
 	echo " "|tee -a SE.log
-	echo -e "${color_green} Get Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
 fi
-echo ""
+echo ""|tee -a SE.log
+
 # raw 0x04 0x26
 echo " Set Sensor Thresholds Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -462,16 +487,16 @@ if [ ! $?==0 ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
-	echo " Please check the response of get threshold manually..."|tee -a SE.log
-	echo " $UNR $UCR $UNC $LNR $LCR $LNC check the vaule if support"|tee -a SE.log
-	echo " $GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8 mask the threshold with '1' support."|tee -a SE.log
+	echo " Please check the response manually..."|tee -a SE.log
+	echo -e " ${color_green}$UNR $UCR $UNC $LNR $LCR $LNC${color_reset} check the vaule if support"|tee -a SE.log
+	echo -e " ${color_green}$GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8${color_reset} mask the threshold with '1' support."|tee -a SE.log
 	ipmitool raw 0x04 0x27 $SID |tee -a SE.log
-	echo -e " ${color_green}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
+	echo -e " ${color_blue}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
 	echo " Restore default threshold..."
 	$i 0x26 $SID 0x$GT1 0x$GT2 0x$GT3 0x$GT4 0x$GT5 0x$GT6 0x$GT7
 	echo " Restore finished..."
 fi
-echo ""
+echo ""|tee -a SE.log
 
 # raw 0x04 0x28 
 echo " Set Sensor Event Enable Command" |tee -a SE.log
@@ -485,7 +510,7 @@ if [ ! -z $SEE6 ];then
 		FailCounter=$(($FailCounter+1))
 	else
 		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a 0x$SEE6 >> SE.log
-		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
+		echo -e "${color_blue} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
 	fi
 else
 	$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a
@@ -495,10 +520,10 @@ else
 		FailCounter=$(($FailCounter+1))
 	else
 		$i 0x28 $SID 0xc0 0x95 0x0a 0x95 0x0a >> SE.log
-		echo -e "${color_green} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
+		echo -e "${color_blue} Set Sensor Thresholds Command finished ${color_reset}"|tee -a SE.log
 	fi
 fi
-echo ""
+echo ""|tee -a SE.log
 # raw 0x04 0x2a rearm all event status
 echo " Re-arm Sensor Events Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -509,9 +534,9 @@ if [ ! $?==0 ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x2a $SID 0x00 >> SE.log
-	echo -e "${color_green} Re-arm Sensor Events Command finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Re-arm Sensor Events Command finished${color_reset}"|tee -a SE.log
 fi
-
+echo ""|tee -a SE.log
 # raw 0x04 0x2b
 echo " Get Sensor Event Status Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -522,9 +547,194 @@ if [ ! $?==0 ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x2b $SID >> SE.log
-	echo -e "${color_green} Get Sensor Event Status Command finished ${color_reset}"|tee -a SE.log
+	read GSE1 GSE2 GSE3 GSE4 GSE5 <<< $($i 0x2b $SID)
+	for j in GSE{1..5}; do
+		eval temp=\$$j
+		temp=${D2B[$((16#$temp))]}
+		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+	done
+	if [ $GSE1b1 -eq '0' ];then
+		echo -e " All Event Messages ${color_red}disabled${color_reset} from $SN"|tee -a SE.log
+	fi
+	if [ $GSE1b2 -eq '0' ];then
+		echo -e " Sensor scanning ${color_red}disabled${color_reset} on $SN"|tee -a SE.log
+	fi
+	if [ $GSE1b3 -eq '1' ];then
+		echo -e " $SN reading/state ${color_red}unavailable${color_reset}"|tee -a SE.log
+	fi
+	if [ ! "$(ipmitool sdr get $SN |grep -i discrete)" ];then
+		if [ $GSE2b1 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}upper non-critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b2 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}upper non-critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b3 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}lower non-recoverable going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b4 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}lower non-recoverable going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b5 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}lower critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b6 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}lower critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b7 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}lower non-critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b8 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}lower non-critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+
+		if [ $GSE3b5 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}upper non-recovable going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b6 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}upper non-recovable going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b7 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_red}upper critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b8 -eq '1' ];then
+			echo -e " Assertion event condition for ${color_green}upper critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+		#Deassert
+		if [ $GSE4b1 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}upper non-critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b2 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}upper non-critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b3 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}lower non-recoverable going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b4 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}lower non-recoverable going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b5 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}lower critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b6 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}lower critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b7 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}lower non-critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b8 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}lower non-critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+
+		if [ $GSE5b5 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}upper non-recovable going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b6 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}upper non-recovable going low${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b7 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_green}upper critical going high${color_reset} occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b8 -eq '1' ];then
+			echo -e " Deassertion event condition for ${color_red}upper critical going low${color_reset} occurred"|tee -a SE.log
+		fi
+	else
+		if [ $GSE2b1 -eq '1' ];then
+			echo -e " State 7 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b2 -eq '1' ];then
+			echo -e " State 6 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b3 -eq '1' ];then
+			echo -e " State 5 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b4 -eq '1' ];then
+			echo -e " State 4 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b5 -eq '1' ];then
+			echo -e " State 3 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b6 -eq '1' ];then
+			echo -e " State 2 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b7 -eq '1' ];then
+			echo -e " State 1 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE2b8 -eq '1' ];then
+			echo -e " State 0 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b2 -eq '1' ];then                                       
+		        echo -e " State 14 assertion event occurred"|tee -a SE.log
+		fi                                                                
+		if [ $GSE3b3 -eq '1' ];then                                       
+		        echo -e " State 13 assertion event occurred"|tee -a SE.log
+		fi                                                                
+		if [ $GSE3b4 -eq '1' ];then                                       
+		        echo -e " State 12 assertion event occurred"|tee -a SE.log
+		fi                                                              
+		if [ $GSE3b5 -eq '1' ];then
+			echo -e " State 11 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b6 -eq '1' ];then
+			echo -e " State 10 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b7 -eq '1' ];then
+			echo -e " State 9 assertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE3b8 -eq '1' ];then
+			echo -e " State 8 assertion event occurred"|tee -a SE.log
+		fi
+		#Deassert
+		if [ $GSE4b1 -eq '1' ];then
+			echo -e " State 7 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b2 -eq '1' ];then
+			echo -e " State 6 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b3 -eq '1' ];then
+			echo -e " State 5 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b4 -eq '1' ];then
+			echo -e " State 4 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b5 -eq '1' ];then
+			echo -e " State 3 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b6 -eq '1' ];then
+			echo -e " State 2 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b7 -eq '1' ];then
+			echo -e " State 1 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE4b8 -eq '1' ];then
+			echo -e " State 0 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b2 -eq '1' ];then                                       
+		        echo -e " State 14 deassertion event occurred"|tee -a SE.log
+		fi                                                                
+		if [ $GSE5b3 -eq '1' ];then                                       
+		        echo -e " State 13 deassertion event occurred"|tee -a SE.log
+		fi                                                                
+		if [ $GSE5b4 -eq '1' ];then                                       
+		        echo -e " State 12 deassertion event occurred"|tee -a SE.log
+		fi                                                              
+		if [ $GSE5b5 -eq '1' ];then
+			echo -e " State 11 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b6 -eq '1' ];then
+			echo -e " State 10 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b7 -eq '1' ];then
+			echo -e " State 9 deassertion event occurred"|tee -a SE.log
+		fi
+		if [ $GSE5b8 -eq '1' ];then
+			echo -e " State 8 deassertion event occurred"|tee -a SE.log
+		fi
+	fi
+	
+	echo -e "${color_blue} Get Sensor Event Status Command finished ${color_reset}"|tee -a SE.log
 fi
-echo ""
+echo ""|tee -a SE.log
 # raw 0x04 0x2d
 echo " Get Sensor Reading Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -541,16 +751,16 @@ else
 		temp=${D2B[$((16#$temp))]}
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
-	echo "The sensor reading = $GSR1. (Ignore on read if sensor does not return an numeric (analog) reading.)"|tee -a SE.log
+	echo -e " The sensor reading = ${color_green}$GSR1${color_reset}.(Ignore on read if sensor does not return an numeric (analog) reading.)"|tee -a SE.log
 	
 	if [ $GSR2b1 -eq '0' ];then
-		echo "All Event Messages disabled from this sensor"|tee -a SE.log
+		echo -e " All Event Messages ${color_red}disabled${color_reset} from $SN"|tee -a SE.log
 	fi
 	if [ $GSR2b2 -eq '0' ];then
-		echo "Sensor scanning disabled"|tee -a SE.log
+		echo -e " $SN Sensor scanning ${color_red}disabled${color_reset}"|tee -a SE.log
 	fi
 	if [ $GSR2b3 -eq '1' ];then
-		echo "reading/state unavailable (formerly “initial update in progress”). This bit is set to indicate that a ‘re-arm’ or ‘Set Event Receiver’ command has been used to request an update of the sensor status, and that update has not occurred yet. Software should use this bit to avoid getting an incorrect status while the first sensor update is in progress."|tee -a SE.log
+		echo -e " $SN Reading/state ${color_red}unavailable${color_reset}"|tee -a SE.log
 	fi
 	# check sensor is discrete or threshold type
 	if [ "$(ipmitool sdr get $SN |grep -i discrete)" ];then
@@ -580,22 +790,22 @@ else
 		fi
 	else
 		if [ $GSR3b3 -eq '1' ];then
-			echo "Reach or over upper non-recoverable threshold"|tee -a SE.log
+			echo -e " Reach or over ${color_red}upper non-recoverable${color_reset} threshold"|tee -a SE.log
 		fi
 		if [ $GSR3b4 -eq '1' ];then
-			echo "Reach or over upper critical threshold"|tee -a SE.log
+			echo -e " Reach or over ${color_red}upper critical threshold${color_reset}"|tee -a SE.log
 		fi
 		if [ $GSR3b5 -eq '1' ];then
-			echo "Reach or over upper non-critical threshold"|tee -a SE.log
+			echo -e " Reach or over ${color_red}upper non-critical threshold${color_reset}"|tee -a SE.log
 		fi
 		if [ $GSR3b6 -eq '1' ];then
-			echo "Reach or under lower non-recoverable threshold"|tee -a SE.log
+			echo -e " Reach or under ${color_red}lower non-recoverable threshold${color_reset}"|tee -a SE.log
 		fi
 		if [ $GSR3b7 -eq '1' ];then
-			echo "Reach or under lower critical threshold"|tee -a SE.log
+			echo -e " Reach or under ${color_red}lower critical threshold${color_reset}"|tee -a SE.log
 		fi
 		if [ $GSR3b8 -eq '1' ];then
-			echo "Reach or under lower non-critical threshold"|tee -a SE.log
+			echo -e " Reach or under ${color_red}lower non-critical threshold${color_reset}"|tee -a SE.log
 		fi
 	fi
 	if [ ! $GSR4 -eq '00' ];then 
@@ -621,10 +831,10 @@ else
 			echo "state 8 asserted"|tee -a SE.log
 		fi
 	fi
-	echo -e "${color_green} Get Sensor Reading Command finished${color_reset}"|tee -a SE.log
+	echo -e "${color_blue} Get Sensor Reading Command finished${color_reset}"|tee -a SE.log
 fi
 
-echo ""
+echo ""|tee -a SE.log
 
 # raw 0x04 0x2f	
 echo " Get Sensor Type Command" |tee -a SE.log
@@ -643,11 +853,11 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	case $GST1 in
-	01) echo " $SN is Temperature type"|tee -a SE.log;;
-	02) echo " $SN is Voltage type"|tee -a SE.log;;
-	03) echo " $SN is Current type"|tee -a SE.log;;
-	04) echo " $SN is Fan type"|tee -a SE.log;;
-	05) echo " $SN is Physical Security type"|tee -a SE.log
+	01) echo -e " $SN is ${color_green}Temperature type${color_reset}"|tee -a SE.log;;
+	02) echo -e " $SN is ${color_green}Voltage type${color_reset}"|tee -a SE.log;;
+	03) echo -e " $SN is ${color_green}Current type${color_reset}"|tee -a SE.log;;
+	04) echo -e " $SN is ${color_green}Fan type${color_reset}"|tee -a SE.log;;
+	05) echo -e " $SN is ${color_green}Physical Security type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -664,8 +874,8 @@ else
 		 05h
 		 Unauthorized dock
 		 06h
-		 FAN area intrusion (supports detection of hot plug fan tampering)"|tee -a SE.log;;
-	06) echo " $SN is Platform Security Violation Attempt type"|tee -a SE.log
+		 FAN area intrusion (supports detection of hot plug fan tampering)${color_reset}"|tee -a SE.log;;
+	06) echo -e " $SN is ${color_green}Platform Security Violation Attempt type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -680,7 +890,7 @@ else
 		 Other pre-boot Password Violation.
 		 05h
 		 Out-of-band Access Password Violation."|tee -a SE.log;;
-	07) echo " $SN is Processor type"
+	07) echo -e " $SN is ${color_green}Processor type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -709,7 +919,7 @@ else
 		 Machine Check Exception (Uncorrectable)
 		 0Ch
 		 Correctable Machine Check Error"|tee -a SE.log;;
-	08) echo " $SN is Power Supply type"|tee -a SE.log
+	08) echo -e " $SN is ${color_green}Power Supply type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -736,7 +946,7 @@ else
 			 Others = Reserved for future definition
 		 07h
 		 Power Supply Inactive (in standby state). Power supply is in a standby state where its main outputs have been automatically deactivated because the load is being supplied by one or more other power supplies."|tee -a SE.log;;
-	09) echo " $SN is Power Unit type"|tee -a SE.log
+	09) echo -e " $SN is ${color_green}Power Unit type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -755,9 +965,9 @@ else
 		 Power Unit Failure detected
 		 07h
 		 Predictive Failure"|tee -a SE.log;;
-	'0a') echo " $SN is Cooling Device type"|tee -a SE.log;;
-	'0b') echo " $SN is Other Units-based Sensor type(per units given in SDR)"|tee -a SE.log;;
-	'0c') echo " $SN is Memory type"|tee -a SE.log
+	'0a') echo -e " $SN is ${color_green}Cooling Device type${color_reset}"|tee -a SE.log;;
+	'0b') echo -e " $SN is ${color_green}Other Units-based Sensor type${color_reset}(per units given in SDR)"|tee -a SE.log;;
+	'0c') echo -e " $SN is ${color_green}Memory type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -785,7 +995,7 @@ else
 		 Memory Automatically Throttled. (memory throttling triggered by a hardware-based mechanism operating independent from system software, such as automatic thermal throttling or throttling to limit power consumption.)
 		 0Ah
 		 Critical Overtemperature. Memory device has entered a critical overtemperature state, exceeding specified operating conditions. Memory devices in this state may produce errors or become inaccessible."|tee -a SE.log;;
-	'0d') echo " $SN is Drive Slot type(Bay)"|tee -a SE.log
+	'0d') echo -e " $SN is ${color_green}Drive Slot type(Bay)${color_reset}"|tee -a SE.log
 		  echo " Event Offset" |tee -a SE.log
 		  echo " 
 		 00h
@@ -806,8 +1016,8 @@ else
 		 Rebuild/Remap in progress
 		 08h
 		 Rebuild/Remap Aborted (was not completed normally)"|tee -a SE.log;;
-	'0e') echo " $SN is POST Memory Resize type";;
-	'0f') echo " $SN is System Firmware Progress type(formerly POST Error)"|tee -a SE.log
+	'0e') echo -e " $SN is ${color_green}POST Memory Resize type${color_reset}"|tee -a SE.log;;
+	'0f') echo -e " $SN is ${color_green}System Firmware Progress type(formerly POST Error)${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -862,7 +1072,7 @@ else
 			 18h Pointing device test
 			 19h Primary processor initialization
 			 1Ah to FFh reserved"|tee -a SE.log;;
-	10) echo " SN is Event Logging Disabled type"|tee -a SE.log
+	10) echo -e " SN is ${color_green}Event Logging Disabled type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -899,7 +1109,7 @@ else
 			 [7] - 0b = Entity Instance number
 			 1b = Vendor-specific processor number
 			 [6:0] - reserved"|tee -a SE.log;;
-	11) echo " $SN is Watchdog 1 type"|tee -a SE.log
+	11) echo -e " $SN is ${color_green}Watchdog 1 type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -918,7 +1128,7 @@ else
 		 OS Watchdog Expired, status only
 		 07h
 		 OS Watchdog pre-timeout Interrupt, non-NMI"|tee -a SE.log;;
-	12) echo " $SN is System Event type"|tee -a SE.log
+	12) echo -e " $SN is ${color_green}System Event type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -965,7 +1175,7 @@ else
 			 [3:0] - Timestamp Clock Type
 			 0h = SEL Timestamp Clock updated. (Also used when both SEL and SDR Timestamp clocks are linked together.)
 			 1h = SDR Timestamp Clock updated."|tee -a SE.log;;
-	13) echo " $SN is Critical Interrupt type"|tee -a SE.log
+	13) echo -e " $SN is ${color_green}Critical Interrupt type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -992,7 +1202,7 @@ else
 		 Bus Fatal Error
 		 0Bh
 		 Bus Degraded (bus operating in a degraded performance state)"|tee -a SE.log;;
-	14) echo " $SN is Button / Switch type"|tee -a SE.log
+	14) echo -e " $SN is ${color_green}Button / Switch type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1005,11 +1215,11 @@ else
 		 FRU latch open (Switch indicating FRU latch is in ‘unlatched’ position and FRU is mechanically removable)
 		 04h
 		 FRU service request button (1 = pressed, service, e.g. removal/replacement, requested)"|tee -a SE.log;;
-	15) echo " $SN is Module / Board type"|tee -a SE.log;;
-	16) echo " $SN is Microcontroller / Coprocessor type"|tee -a SE.log;;
-	17) echo " $SN is Add-in Card type"|tee -a SE.log;;
-	18) echo " $SN is Chassis type"|tee -a SE.log;;
-	19) echo " $SN is Chip Set"|tee -a SE.log
+	15) echo -e " $SN is ${color_green}Module / Board type${color_reset}"|tee -a SE.log;;
+	16) echo -e " $SN is ${color_green}Microcontroller / Coprocessor type${color_reset}"|tee -a SE.log;;
+	17) echo -e " $SN is ${color_green}Add-in Card type${color_reset}"|tee -a SE.log;;
+	18) echo -e " $SN is ${color_green}Chassis type${color_reset}"|tee -a SE.log;;
+	19) echo -e " $SN is ${color_green}Chip Set${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1050,16 +1260,16 @@ else
 			 0Dh = unknown
 		 01h
 		 Thermal Trip"|tee -a SE.log;;
-	'1a') echo " $SN is Other FRU type"|tee -a SE.log;;
-	'1b') echo " $SN is Cable / Interconnect type"|tee -a SE.log
+	'1a') echo -e " $SN is ${color_green}Other FRU type${color_reset}"|tee -a SE.log;;
+	'1b') echo -e " $SN is ${color_green}Cable / Interconnect type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
 		 Cable/Interconnect is connected
 		 01h
 		 Configuration Error - Incorrect cable connected / Incorrect interconnection"|tee -a SE.log;;
-	'1c') echo " $SN is Terminator type"|tee -a SE.log;;
-	'1d') echo " $SN is System Boot / Restart Initiated type"|tee -a SE.log
+	'1c') echo -e " $SN is ${color_green}Terminator type${color_reset}"|tee -a SE.log;;
+	'1d') echo -e " $SN is ${color_green}System Boot / Restart Initiated type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -1083,8 +1293,8 @@ else
 			[3:0] - restart cause per Get System Restart Cause command.
 		 Event Data 3
 			Channel number used to deliver command that generated restart, per Get System Restart Cause command."|tee -a SE.log;;
-	'1e') echo " $SN is Boot Error type"|tee -a SE.log
-		  echo " Event Offset"
+	'1e') echo -e " $SN is ${color_green}Boot Error type${color_reset}"|tee -a SE.log
+		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
 		 No bootable media
@@ -1096,7 +1306,7 @@ else
 		 Invalid boot sector
 		 04h
 		 Timeout waiting for user selection of boot source"|tee -a SE.log;;
-	'1f') echo " $SN is Base OS Boot / Installation Status type"|tee -a SE.log
+	'1f') echo -e " $SN is ${color_green}Base OS Boot / Installation Status type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -1121,7 +1331,7 @@ else
 		 Base OS/Hypervisor Installation aborted
 		 0Ah
 		 Base OS/Hypervisor Installation failed"|tee -a SE.log;;
-	20) echo " $SN is OS Stop / Shutdown type"|tee -a SE.log
+	20) echo -e " $SN is ${color_green}OS Stop / Shutdown type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1136,7 +1346,7 @@ else
 		 Soft Shutdown initiated by PEF
 		 05h
 		 Agent Not Responding. Graceful shutdown request to agent via BMC did not occur due to missing or malfunctioning local agent."|tee -a SE.log;;
-	21) echo " $SN is Slot / Connector type"|tee -a SE.log
+	21) echo -e " $SN is ${color_green}Slot / Connector type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1178,7 +1388,7 @@ else
 			 all other = reserved
 		 Event Data 3
 			 7:0 Slot/Connector Number"|tee -a SE.log;;
-	22) echo " $SN is System ACPI Power State type"|tee -a SE.log
+	22) echo -e " $SN is ${color_green}System ACPI Power State type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1209,7 +1419,7 @@ else
 		 Legacy OFF state
 		 0Eh
 		 Unknown"|tee -a SE.log;;
-	23) echo " $SN is Watchdog 2 type"|tee -a SE.log
+	23) echo -e " $SN is ${color_green}Watchdog 2 type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1241,7 +1451,7 @@ else
 			 5h = OEM
 			 Fh = unspecified
 			 all other = reserved"|tee -a SE.log;;
-	24) echo " $SN is Platform Alert type"|tee -a SE.log
+	24) echo -e " $SN is ${color_green}Platform Alert type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1252,7 +1462,7 @@ else
 		 Platform Event Trap generated, formatted per IPMI PET specification
 		 03h
 		 platform generated SNMP trap, OEM format"|tee -a SE.log;;
-	25) echo " $SN is Entity Presence type"|tee -a SE.log
+	25) echo -e " $SN is ${color_green}Entity Presence type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1261,15 +1471,15 @@ else
 		 Entity Absent. This indicates that the Entity identified by the Entity ID for the sensor is absent. If the entity is absent, system management software should consider all sensors associated with that Entity to be absent as well - and ignore those sensors.
 		 02h
 		 Entity Disabled. The Entity is present, but has been disabled. A deassertion of this event indicates that the Entity has been enabled."|tee -a SE.log;;
-	26) echo " $SN is Monitor ASIC / IC type"|tee -a SE.log;;
-	27) echo " $SN is LAN type"|tee -a SE.log
+	26) echo -e " $SN is ${color_green}Monitor ASIC / IC type${color_reset}"|tee -a SE.log;;
+	27) echo -e " $SN is ${color_green}LAN type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo "  
 		 00h
 		 LAN Heartbeat Lost
 		 01h
 		 LAN Heartbeat"|tee -a SE.log;;
-	28) echo " $SN is Management Subsystem Healthtype"|tee -a SE.log
+	28) echo -e " $SN is ${color_green}Management Subsystem Healthtype${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1301,7 +1511,7 @@ else
 			 For non-intelligent FRU device:
 			 [7:1] - 7-bit I2C Slave Address of FRU device . This is relative to the bus the device is on. For devices on the IPMB, this is the slave address of the device on the IPMB. For devices on a private bus, this is the slave address of the device on the private bus.
 			 [0] - reserved."|tee -a SE.log;;
-	29) echo " $SN is Battery type"|tee -a SE.log
+	29) echo -e " $SN is ${color_green}Battery type${color_reset}"|tee -a SE.log
 		echo " Event Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1310,7 +1520,7 @@ else
 		 battery failed battery presence detected
 		 02h
 		 battery presence detected"|tee -a SE.log;;
-	'2a') echo " $SN is Session Audit type"|tee -a SE.log
+	'2a') echo -e " $SN is ${color_green}Session Audit type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -1335,7 +1545,7 @@ else
 			 10b = Session deactivated by timeout
 			 11b = Session deactivated by configuration change
 			 3:0 Channel number that session was activated/deactivated over. Use channel number that session was activated over if a session was closed for an unspecified reason, a timeout, or a configuration change."|tee -a SE.log;;
-	'2b') echo " $SN is Version Change type"|tee -a SE.log
+	'2b') echo -e " $SN is ${color_green}Version Change type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -1380,7 +1590,7 @@ else
 			 15h board/FRU replaced with newer version
 			 16h board/FRU replaced with older version
 			 17h board/FRU hardware configuration change (e.g. strap, jumper, cable change, etc.)"|tee -a SE.log;;
-	'2c') echo " $SN is FRU State type"|tee -a SE.log
+	'2c') echo -e " $SN is ${color_green}FRU State type${color_reset}"|tee -a SE.log
 		  echo " Event Offset"|tee -a SE.log
 		  echo " 
 		 00h
@@ -1416,10 +1626,11 @@ else
 			 All other = reserved
 			 3:0 Previous state offset value (return offset for same state as present state if previous state is unknown)
 			 All other = reserved."|tee -a SE.log;;
-	*) echo " $SN is Reserved or OEM type, check the Spec please"|tee -a SE.log;;
+	*) echo -e " $SN is ${color_green}Reserved or OEM type, check the Spec please${color_reset}"|tee -a SE.log;;
 	esac
+
 	case $GST2 in
-	01) echo " $SN is Threshold(0x01) Event/Reading class"|tee -a SE.log
+	01) echo -e " $SN is ${color_green}Threshold(0x01) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
 		 00h
@@ -1446,7 +1657,7 @@ else
 		 Upper Non-recoverable - going low
 		 0Bh
 		 Upper Non-recoverable - going high"|tee -a SE.log;;
-	02) echo " $SN is Discrete(0x02) Event/Reading class"|tee -a SE.log
+	02) echo -e " $SN is ${color_green}Discrete(0x02) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " DMI-based “Usage State” STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1456,7 +1667,7 @@ else
 		 Transition to Active
 		 02h
 		 Transition to Busy"|tee -a SE.log;;
-	03) echo " $SN is ‘digital’ Discrete(0x03) Event/Reading class"|tee -a SE.log
+	03) echo -e " $SN is ${color_green}'digital' Discrete(0x03) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1464,7 +1675,7 @@ else
 		 State Deasserted
 		 01h
 		 State Asserted"|tee -a SE.log;;
-	04) echo " $SN is ‘digital’ Discrete(0x04) Event/Reading class"|tee -a SE.log
+	04) echo -e " $SN is ${color_green}'digital' Discrete(0x04) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1472,7 +1683,7 @@ else
 		 Predictive Failure deasserted
 		 01h
 		 Predictive Failure asserted"|tee -a SE.log;;
-	05) echo " $SN is ‘digital’ Discrete(0x05) Event/Reading class"|tee -a SE.log
+	05) echo -e " $SN is ${color_green}'digital' Discrete(0x05) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1480,7 +1691,7 @@ else
 		 Limit Not Exceeded
 		 01h
 		 Limit Exceeded"|tee -a SE.log;;
-	06) echo " $SN is ‘digital’ Discrete(0x06) Event/Reading class"|tee -a SE.log
+	06) echo -e " $SN is ${color_green}'digital' Discrete(0x06) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " DIGITAL/DISCRETE EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1488,7 +1699,7 @@ else
 		 Performance Met
 		 01h
 		 Performance Lags"|tee -a SE.log;;
-	07) echo " $SN is Discrete(0x07) Event/Reading class"|tee -a SE.log
+	07) echo -e " $SN is ${color_green}Discrete(0x07) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " SEVERITY EVENT STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1510,7 +1721,7 @@ else
 		 Monitor
 		 08h
 		 Informational"|tee -a SE.log;;
-	08) echo " $SN is ‘digital’ Discrete(0x08) Event/Reading class"|tee -a SE.log
+	08) echo -e " $SN is ${color_green}'digital' Discrete(0x08) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1518,7 +1729,7 @@ else
 		 Device Removed / Device Absent
 		 01h
 		 Device Inserted / Device Present"|tee -a SE.log;;
-	09) echo " $SN is ‘digital’ Discrete(0x09) Event/Reading class"|tee -a SE.log
+	09) echo -e " $SN is ${color_green}'digital' Discrete(0x09) Event/Reading class${color_reset}"|tee -a SE.log
 		echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		echo " Generic Offset"|tee -a SE.log
 		echo " 
@@ -1526,7 +1737,7 @@ else
 		 Device Disabled
 		 01h
 		 Device Enabled"|tee -a SE.log;;
-	'0a') echo " $SN is Discrete(0x0a) Event/Reading class"|tee -a SE.log
+	'0a') echo -e " $SN is ${color_green}Discrete(0x0a) Event/Reading class${color_reset}"|tee -a SE.log
 		  echo " AVAILABILITY STATUS STATES"|tee -a SE.log
 		  echo " Generic Offset"|tee -a SE.log
 		  echo " 
@@ -1548,7 +1759,7 @@ else
 		 transition to Power Save
 		 08h
 		 Install Error"|tee -a SE.log;;
-	'0b') echo " $SN is Discrete(0x0b) Event/Reading class"|tee -a SE.log
+	'0b') echo -e " $SN is ${color_green}Discrete(0x0b) Event/Reading class${color_reset}"|tee -a SE.log
 		  echo " Other AVAILABILITY STATUS STATES"|tee -a SE.log
 		  echo " Generic Offset"|tee -a SE.log
 		  echo " 
@@ -1569,7 +1780,7 @@ else
 		 Redundancy Degraded from Fully Redundant Unit has lost some redundant resource(s) but is still in a redundant state. Entered by a transition from Fully Redundant condition.
 		 07h
 		 Redundancy Degraded from Non-redundant Unit has regained some resource(s) and is redundant but not fully redundant. Entered from Non-redundant:Sufficient Resources or Non-redundant:Insufficient Resources."|tee -a SE.log;;
-	'0c') echo " $SN is Discrete(0x0c) Event/Reading class"|tee -a SE.log
+	'0c') echo -e " $SN is ${color_green}Discrete(0x0c) Event/Reading class${color_reset}"|tee -a SE.log
 		 echo " Other AVAILABILITY STATUS STATES"|tee -a SE.log
 		 echo " Generic Offset"|tee -a SE.log
 		 echo " 
@@ -1583,9 +1794,12 @@ else
 		 03h
 		 D3 Power State"|tee -a SE.log;;
 	esac
-	echo -e "${color_green} Get Sensor Type Command finished ${color_reset}"|tee -a SE.log
+
+	echo -e "${color_blue} Get Sensor Type Command finished ${color_reset}"|tee -a SE.log
 fi
-echo ""
+
+echo ""|tee -a SE.log
+
 # raw 0x04 0x2e 0x0c 0x0c OEM sensor type and discrete event/reading type
 echo " Set Sensor Type Command"|tee -a SE.log
 echo " Response below :" |tee -a SE.log
@@ -1597,7 +1811,7 @@ if [ ! $?==0 ] ; then
 else
 	$i 0x2e $SID 0x0c 0x0c >> SE.log
 	if [ "$($i 0x2f $SID)"=="0c 0c" ];then
-		echo -e "${color_green} Set Sensor Type Command finished${color_reset}"|tee -a SE.log
+		echo -e "${color_blue} Set Sensor Type Command finished${color_reset}"|tee -a SE.log
 		echo " Restore sensor type and event/reading type to default..."
 		$i 0x2e $SID 0x$GST1 0x$GST2
 		echo " Restore finished..."
@@ -1607,8 +1821,11 @@ else
 	fi
 fi
 
+echo ""|tee -a SE.log
+echo ===============================================================================================|tee -a SE.log
+echo ""|tee -a SE.log
 if [ ! $FailCounter == 0 ]; then
-	echo -e "${color_red} Sensor&Event function test finished but has some command failed check the log please.${color_reset}" |tee -a SE.log
+	echo -e "${color_red} Sensor&Event function test finished but has some command failed check the SE.log please.${color_reset}"
 else
-	echo -e "${color_green} Sensor&Event function test finished.${color_reset}" |tee -a SE.log
+	echo -e "${color_blue} Sensor&Event function test finished. Please check the SE.log${color_reset}"
 fi

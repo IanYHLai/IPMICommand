@@ -5,7 +5,9 @@ if [ -f "App.log" ]; then
 	cp App.log $(date +%Y%m%d_%T)_App.log && rm -f App.log
 fi
 clear
-echo "Start App function raw command..."|tee -a App.log
+date|tee -a App.log
+read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
+echo "$USER start testing in $OSInfo..."|tee -a chassis.log
 i="ipmitool raw 0x06"
 sleep 1
 color_reset='\e[0m'
@@ -35,8 +37,7 @@ function H2B () {
         echo $L1$L2$L3$L4$R1$R2$R3$R4                                                          
 }
 # raw 0x06 0x01
-echo ""
-echo "------------------------------------------------------------------------------------------------"|tee -a App.log
+echo ""|tee -a App.log
 echo " Get Device ID " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x01
@@ -67,7 +68,7 @@ else
 	#DI2 Device Revision
 	echo -e " This device revision is ${color_green}$DR.${color_reset}" |tee -a App.log
 	if [ $DI2b1 -eq "1" ];then
-		echo " This device provides Device SDRs." |tee -a App.log
+		echo -e " ${color_green}This device provides Device SDRs${color_reset}." |tee -a App.log
 	else
 		echo -e " ${color_red}This device doesn't provide Device SDRs.${color_reset}" |tee -a App.log
 	fi
@@ -118,9 +119,9 @@ else
 	#DI12 DI13 DI14 DI15 Auxiliary Firmware Revision Information
 	echo -e " Auxiliary Firmware Revision Information is defined by Manufacturer ID : ${color_green}$DI12 $DI13 $DI14 $DI15${color_reset}" |tee -a App.log
 	echo '' |tee -a App.log
-	echo -e " ${color_green}Get Device ID finished${color_reset}" |tee -a App.log
+	echo -e " ${color_blue}Get Device ID finished${color_reset}" |tee -a App.log
 fi
-echo ""
+echo ""|tee -a App.log
 # raw 0x06 0x02 
 echo " BMC Cold Rest " |tee -a  App.log
 echo " Response below :" |tee -a App.log
@@ -132,14 +133,14 @@ else
 	echo " BMC Cold Restting... Wait for BMC initializing..."
 	sleep 90
 	CRC=0
-	while [ ! $($i 0x01) ] && [ $CRC==35 ]
+	while [ ! $($i 0x01) ] && [ $CRC -le 35 ]
 	do
 		sleep 5
 		let CRC=$CRC+1
 	done
-	echo "${color_green} BMC Cold Rest finished.${color_reset}"|tee -a App.log
+	echo "${color_blue} BMC Cold Rest finished.${color_reset}"|tee -a App.log
 fi
-echo ""
+echo ""|tee -a App.log
 # raw 0x06 0x03
 echo " BMC Warm Rest " |tee -a  App.log
 echo " Response below :" |tee -a App.log
@@ -151,48 +152,70 @@ else
 	echo " BMC Warm Restting... Wait for BMC initializing..."
 	sleep 90
 	WRC=0
-	while [ ! $($i 0x01) ] && [ $WRC==35 ]
+	while [ ! $($i 0x01) ] && [ $WRC -le 35 ]
 	do
 		sleep 5
 		let WRC=$WRC+1
 	done
-		echo " BMC Warm Rest finished."|tee -a App.log
+		echo -e " ${color_blue}BMC Warm Rest finished${color_reset}."|tee -a App.log
 fi
 echo ""
 # raw 0x06 0x04
 echo " BMC Self Test " |tee -a  App.log
 echo " Response below :" |tee -a App.log
-$i 0x02
+$i 0x04
 if [ ! $? -eq '0' ] ; then
-	$i 0x01 >> App.log
-	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
+	$i 0x04 >> App.log
+	echo -e "${color_red} BMC Self Test failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
 else
-	echo " BMC Cold Restting... Wait for BMC initializing..."
-	sleep 100
-	$i 0x01
-	if [ $? -eq 1 ];then
-		sleep 20
-	else
-		echo " BMC Cold Rest finished."|tee -a App.log
-	fi
+	$i 0x04 >> App.log
+	read BST1 BST2 <<< $($i 0x04)
+	for j in BST{1..2}; do
+		eval temp=\$$j
+		temp=${D2B[$((16#$temp))]}
+		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+	done
+	case $BST1 in
+	'55') echo -e " ${color_green}No error${color_reset}. All Self Tests Passed${color_reset}."|tee -a App.log;;
+	'56') echo -e " ${color_red}Self Test function not implemented in this controller${color_reset}."|tee -a App.log;;
+	'57') echo -e " ${color_red}Corrupted or inaccessible data or devices${color_reset}"|tee -a App.log
+		  if [ $BST2b1 -eq '1' ];then
+			echo -e " ${color_red}Cannot access SEL device${color_reset}"|tee -a App.log
+		  else
+		    echo -e " ${color_red}SEL device Unknown fail${color_rest}"|tee -a App.log
+		  fi
+		  if [ $BST2b2 -eq '1' ];then
+			echo -e " ${color_red}Cannot access SDR Repository${color_reset}"|tee -a App.log
+		  else
+		    echo -e " ${color_red}SDR Repository Unknown fail${color_rest}"|tee -a App.log
+		  fi
+		  if [ $BST2b3 -eq '1' ];then
+			echo -e " ${color_red}Cannot access BMC FRU device${color_reset}"|tee -a App.log
+		  else
+		    echo -e " ${color_red}FRU device Unknown fail${color_rest}"|tee -a App.log
+		  fi
+		  if [ $BST2b4 -eq '1' ];then
+			echo -e " ${color_red}IPMB signal lines do not respond${color_reset}"|tee -a App.log
+		  else
+		    echo -e " ${color_red}IPMB signal Unknown fail${color_rest}"|tee -a App.log
+		  fi
+		  if [ $BST2b5 -eq '1' ];then
+			echo -e " ${color_red}SDR Repository empty${color_reset}"|tee -a App.log
+		  fi
+		  if [ $BST2b6 -eq '1' ];then
+			echo -e " ${color_red}Internal Use Area of BMC FRU corrupted${color_reset}"|tee -a App.log
+		  fi
+		  if [ $BST2b7 -eq '1' ];then
+			echo -e " ${color_red}controller update ‘boot block’ firmware corrupted${color_reset}"|tee -a App.log
+		  fi
+		  if [ $BST2b8 -eq '1' ];then
+			echo -e " ${color_red}controller operational firmware corrupted${color_reset}"|tee -a App.log
+		  fi;;
+	'58') echo -e " ${color_red}Fatal hardware error (system should consider BMC inoperative). This will indicate that the controller hardware (including associated devices such as sensor hardware or RAM) may need to be repaired or replaced${color_reset}."|tee -a App.log;;
+	.) echo -e " ${color_green}Device-specific ‘internal’ failure. Refer to the particular device’s specification for definition${color_reset}."|tee -a App.log;;
+	esac
+	
 fi
 
-# raw 0x06 0x02 
-echo " BMC Cold Rest " |tee -a  App.log
-echo " Response below :" |tee -a App.log
-$i 0x02
-if [ ! $? -eq '0' ] ; then
-	$i 0x01 >> App.log
-	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
-	FailCounter=$(($FailCounter+1))
-else
-	echo " BMC Cold Restting... Wait for BMC initializing..."
-	sleep 90
-	while [ ! $($i 0x01) ]
-	do
-		sleep 5
-	done
-	echo " BMC Cold Rest finished."|tee -a App.log
-fi
 

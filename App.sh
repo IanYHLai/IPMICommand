@@ -20,8 +20,10 @@ date |tee -a App.log
 FailCounter=0
 #printf '\x5F' | xxd -b | cut -d' ' -f2 
 #$((#16$hex))
-##Convert Hex to Binary
+##Convert Dec to Binary
 D2B=({0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1}{0..1})
+##Convert Dec to Binary with space
+D2BS=({0..1}' '{0..1}' '{0..1}' '{0..1}' '{0..1}' '{0..1}' '{0..1}' '{0..1})
 function H2B () {                                                                              
         L=${1:0:1}                                                                             
         R=${1:1:1}                                                                             
@@ -223,24 +225,163 @@ fi
 echo ""|tee -a App.log
 
 # raw 0x06 0x05
-echo -e " ${color_convert}Manufacturing Test On Command${color_reset} " |tee -a  App.log
+echo -e " ${color_convert} Manufacturing Test On Command${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x05
 if [ ! $? -eq '0' ] ; then
 	echo -e "${color_red} Manufacturing Test On failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
 else
-	echo "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
+	echo -e "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
 fi
 echo ""|tee -a App.log
 
 # raw 0x06 0x06
-echo -e " ${color_convert}Manufacturing Test On Command${color_reset} " |tee -a  App.log
+echo -e " ${color_convert} Set ACPI Power State Command${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
-$i 0x05
+ACPI="80 81 82 83 84 85 86 87 88 89 8a a0 a1 aa ff"
+ACPID="80 81 82 83 aa ff"
+ACPIFailCounter=0
+for j in $ACPI
+do
+	for k in $ACPID 
+	do 
+		$i 0x06 0x$j 0x$k > /dev/null
+		if [ ! $? -eq '0' ] ; then
+			echo -e "${color_red} Set ACPI Power State 0x$j 0x$k failed ${color_reset}"|tee -a App.log
+			ACPIFailCounter=$(($ACPIFailCounter+1))
+			FailCounter=$(($FailCounter+1))
+		fi
+	done
+done
+if [ $ACPIFailCounter -eq '0' ];then
+	$i 0x06 0x80 0x80
+	echo -e "${color_blue} Set all ACPI Power State finished.${color_reset}"|tee -a App.log ;;
+	echo " Set APCI Power State to S0 and Device Power State D0..."
+fi
+
+# raw 0x06 0x07
+echo -e " ${color_convert} Get ACPI Power State Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x07
 if [ ! $? -eq '0' ] ; then
-	echo -e "${color_red} Manufacturing Test On failed ${color_reset}"|tee -a App.log
+	$i 0x07 >> App.log
+	echo -e "${color_red} Get ACPI Power State Command failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
 else
-	echo "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
+	if [ "$i 0x07"=="00 00" ]
+		$i 0x07 >> App.log
+		echo -e "${color_blue} Get ACPI Power State Command finished.${color_reset}"|tee -a App.log
+	fi
+echo ""|tee -a App.log
 fi
+
+# raw 0x06 0x08
+echo -e " ${color_convert} Get Device GUID Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x08
+if [ ! $? -eq '0' ] ; then
+	$i 0x08 >> App.log
+	echo -e "${color_red} Get Device GUID Command failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo -e "${color_blue} Get Device GUID Command finished.${color_reset}"|tee -a App.log
+fi
+echo ""|tee -a App.log
+
+# raw 0x06 0x08
+echo -e " ${color_convert} Get NetFn Support Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x09 $Ch
+if [ ! $? -eq '0' ] ; then
+	$i 0x09 $Ch >> App.log
+	echo -e "${color_red} Get NetFn Support in channel $Ch Command failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	$i 0x09 $Ch >> App.log
+	read GNS1 GNS2 GNS3 GNS4 GNS5 GNS6 GNS7 GNS8 GNS9 GNS10 GNS11 GNS12 GNS13 GNS14 GNS15 GNS16 GNS17 <<< $($i 0x04)
+	for j in GNS{1..17}; do
+		eval temp=\$$j
+		temp=${D2B[$((16#$temp))]}
+		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+	done
+	case $GNS1b1$GNS1b2 in
+		00) echo -e " ${color_green} No LUN 3 (11b) support${color_reset}"|tee -a App.log;;
+		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 3 (11b) support${color_reset}"|tee -a App.log;;
+		10) echo -e " ${color_green} Commands exist on LUN 3 (11b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red}LUN 3 (11b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+	esac
+	case $GNS1b3$GNS1b4 in
+		00) echo -e " ${color_green} No LUN 2 (10b) support${color_reset}"|tee -a App.log;;
+		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 2 (10b) support${color_reset}"|tee -a App.log;;
+		10) echo -e " ${color_green} Commands exist on LUN 2 (10b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red}LUN 2 (10b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+	esac
+	case $GNS1b5$GNS1b6 in
+		00) echo -e " ${color_green} No LUN 1 (01b) support${color_reset}"|tee -a App.log;;
+		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 1 (01b) support${color_reset}"|tee -a App.log;;
+		10) echo -e " ${color_green} Commands exist on LUN 1 (01b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red}LUN 1 (01b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+	esac
+	case $GNS1b7$GNS1b8 in
+		00) echo -e " ${color_green} No LUN 0 (00b) support${color_reset}"|tee -a App.log;;
+		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 0 (00b) support${color_reset}"|tee -a App.log;;
+		10) echo -e " ${color_green} Commands exist on LUN 0 (00b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red}LUN 0 (00b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+	esac
+	echo ""|tee -a App.log
+	if [ ! "$GNS1b7$GNS1b8"=="00" ];then
+		NetFnLUN0=NetFn pairs
+		tmp=${D2BS[$((16#$GNS2))]}${D2BS[$((16#$GNS3))]}${D2BS[$((16#$GNS4))]}${D2BS[$((16#$GNS5))]}
+		ArrayNetFn=($tmp)
+		for k in {0..31}
+		do
+			if [ ${ArrayNetFn[k]} -eq '1' ];then
+				NetFnLUN0="$NetFnLUN0 ($(($k*2)) $((($k*2)+1)))"
+			fi
+		done
+		echo -e " ${color_green}$NetFnLUN0 is used for LUN 00b${color_reset}"|tee -a App.log
+		echo ""|tee -a App.log
+	fi
+	if [ ! "$GNS1b5$GNS1b6"=="00" ];then
+		NetFnLUN1=NetFn pairs
+		tmp=${D2BS[$((16#$GNS6))]}${D2BS[$((16#$GNS7))]}${D2BS[$((16#$GNS8))]}${D2BS[$((16#$GNS9))]}
+		ArrayNetFn=($tmp)
+		for k in {0..31}
+		do
+			if [ ${ArrayNetFn[k]} -eq '1' ];then
+				NetFnLUN1="$NetFnLUN1 ($(($k*2)) $((($k*2)+1)))"
+			fi
+		done
+		echo -e " ${color_green}$NetFnLUN1 is used for LUN 01b${color_reset}"|tee -a App.log
+		echo ""|tee -a App.log
+	fi
+	if [ ! "$GNS1b3$GNS1b4"=="00" ];then
+		NetFnLUN2=NetFn pairs
+		tmp=${D2BS[$((16#$GNS10))]}${D2BS[$((16#$GNS11))]}${D2BS[$((16#$GNS12))]}${D2BS[$((16#$GNS13))]}
+		ArrayNetFn=($tmp)
+		for k in {0..31}
+		do
+			if [ ${ArrayNetFn[k]} -eq '1' ];then
+				NetFnLUN2="$NetFnLUN2 ($(($k*2)) $((($k*2)+1)))"
+			fi
+		done
+		echo -e " ${color_green}$NetFnLUN2 is used for LUN 10b${color_reset}"|tee -a App.log
+		echo ""|tee -a App.log
+	fi
+	if [ ! "$GNS1b1$GNS1b2"=="00" ];then
+		NetFnLUN3=NetFn pairs
+		tmp=${D2BS[$((16#$GNS14))]}${D2BS[$((16#$GNS15))]}${D2BS[$((16#$GNS16))]}${D2BS[$((16#$GNS17))]}
+		ArrayNetFn=($tmp)
+		for k in {0..31}
+		do
+			if [ ${ArrayNetFn[k]} -eq '1' ];then
+				NetFnLUN3="$NetFnLUN3 ($(($k*2)) $((($k*2)+1)))"
+			fi
+		done
+		echo -e " ${color_green}$NetFnLUN3 is used for LUN 11b${color_reset}"|tee -a App.log
+		echo ""|tee -a App.log
+	fi
+	echo -e "${color_blue} Get NetFn Support in channel $Ch Command finished.${color_reset}"|tee -a App.log
+fi
+echo ""|tee -a App.log

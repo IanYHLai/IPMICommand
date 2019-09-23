@@ -4,16 +4,18 @@ echo -e "${color_red}Remove and backup the previous log as date format...${color
 if [ -f "App.log" ]; then
 	cp App.log $(date +%Y%m%d_%T)_App.log && rm -f App.log
 fi
-clear
+
 date|tee -a App.log
 read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
-echo "$USER start testing in $OSInfo..."|tee -a chassis.log
+echo "$USER start testing in $OSInfo..."|tee -a App.sh.log
+
 i="ipmitool raw 0x06"
 sleep 1
 color_reset='\e[0m'
 color_green='\e[32m'
 color_red='\e[31m'
 color_convert='\e[7m'
+color_blue='\e[34m'
 date |tee -a App.log
 FailCounter=0
 #printf '\x5F' | xxd -b | cut -d' ' -f2 
@@ -36,9 +38,10 @@ function H2B () {
         echo $L$R                                                                              
         echo $L1$L2$L3$L4$R1$R2$R3$R4                                                          
 }
+
 # raw 0x06 0x01
 echo ""|tee -a App.log
-echo " Get Device ID " |tee -a  App.log
+echo -e " ${color_convert}Get Device ID${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x01
 if [ ! $? -eq '0' ] ; then
@@ -47,7 +50,7 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x01 >> App.log
-	echo =====================Device ID info======================== |tee -a app.log
+	echo =====================Device ID info======================== |tee -a App.log
 	read DI1 DI2 DI3 DI4 DI5 DI6 DI7 DI8 DI9 DI10 DI11 DI12 DI13 DI14 DI15 <<< $($i 0x01)
 	echo -e " The SUT device ID is ${color_green}$DI1${color_reset} (hex)" |tee -a App.log
 	echo "" |tee -a App.log
@@ -123,7 +126,7 @@ else
 fi
 echo ""|tee -a App.log
 # raw 0x06 0x02 
-echo " BMC Cold Rest " |tee -a  App.log
+echo -e " ${color_convert}BMC Cold Rest ${color_reset}" |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x02
 if [ ! $? -eq '0' ] ; then
@@ -142,7 +145,7 @@ else
 fi
 echo ""|tee -a App.log
 # raw 0x06 0x03
-echo " BMC Warm Rest " |tee -a  App.log
+echo -e " ${color_convert}BMC Warm Rest${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x03
 if [ ! $? -eq '0' ] ; then
@@ -161,7 +164,7 @@ else
 fi
 echo ""
 # raw 0x06 0x04
-echo " BMC Self Test " |tee -a  App.log
+echo -e " ${color_convert}BMC Self Test${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x04
 if [ ! $? -eq '0' ] ; then
@@ -215,7 +218,29 @@ else
 	'58') echo -e " ${color_red}Fatal hardware error (system should consider BMC inoperative). This will indicate that the controller hardware (including associated devices such as sensor hardware or RAM) may need to be repaired or replaced${color_reset}."|tee -a App.log;;
 	.) echo -e " ${color_green}Device-specific ‘internal’ failure. Refer to the particular device’s specification for definition${color_reset}."|tee -a App.log;;
 	esac
-	
 fi
 
+echo ""|tee -a App.log
 
+# raw 0x06 0x05
+echo -e " ${color_convert}Manufacturing Test On Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x05
+if [ ! $? -eq '0' ] ; then
+	echo -e "${color_red} Manufacturing Test On failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
+fi
+echo ""|tee -a App.log
+
+# raw 0x06 0x06
+echo -e " ${color_convert}Manufacturing Test On Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x05
+if [ ! $? -eq '0' ] ; then
+	echo -e "${color_red} Manufacturing Test On failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
+fi

@@ -10,10 +10,13 @@ echo -e "$color_redRemove and backup the previous log as date format...${color_r
 if [ -f "SE.log" ]; then
 	cp SE.log $(date +%Y%m%d_%T)_SE.log && rm -f SE.log
 fi
+
 date |tee -a SE.log
+
 echo -e "${color_convert}*This script will test one of the sensors to verify the command implemented or not.*${color_reset}"
 read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
-echo "$USER start S/E testing in $OSInfo "|tee -a chassis.log
+echo "$USER start S/E testing in $OSInfo "|tee -a SE.log
+
 i="ipmitool raw 0x04"
 sleep 1
 read -p "Please input BMC channel number(with 0xFF format) :" Ch
@@ -177,7 +180,7 @@ else
 fi
 
 # raw 0x04 0x12
-echo ""|tee -a Se.log
+echo ""|tee -a SE.log
 echo " Set PEF Configuration Parameters Command" |tee -a SE.log
 echo " Set all PEF action disable..."|tee -a SE.log
 echo " Response below :" |tee -a  SE.log

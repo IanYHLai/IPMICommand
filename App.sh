@@ -9,6 +9,8 @@ date|tee -a App.log
 read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
 echo "$USER start testing in $OSInfo..."|tee -a App.sh.log
 
+read -p "Enter the BMC channel with 0XFF format: " Ch
+
 i="ipmitool raw 0x06"
 sleep 1
 color_reset='\e[0m'
@@ -128,43 +130,43 @@ else
 fi
 echo ""|tee -a App.log
 # raw 0x06 0x02 
-echo -e " ${color_convert}BMC Cold Rest ${color_reset}" |tee -a  App.log
-echo " Response below :" |tee -a App.log
-$i 0x02
-if [ ! $? -eq '0' ] ; then
-	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
-	FailCounter=$(($FailCounter+1))
-else
-	echo " BMC Cold Restting... Wait for BMC initializing..."
-	sleep 90
-	CRC=0
-	while [ ! $($i 0x01) ] && [ $CRC -le 35 ]
-	do
-		sleep 5
-		let CRC=$CRC+1
-	done
-	echo "${color_blue} BMC Cold Rest finished.${color_reset}"|tee -a App.log
-fi
+#echo -e " ${color_convert}BMC Cold Rest ${color_reset}" |tee -a  App.log
+#echo " Response below :" |tee -a App.log
+#$i 0x02
+#if [ ! $? -eq '0' ] ; then
+#	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
+#	FailCounter=$(($FailCounter+1))
+#else
+#	echo " BMC Cold Restting... Wait for BMC initializing..."
+#	sleep 90
+#	CRC=0
+#	while [ ! "$($i 0x01)" ] && [ $CRC -le 35 ]
+#	do
+#		sleep 5
+#		let CRC=$CRC+1
+#	done
+#	echo -e "${color_blue} BMC Cold Rest finished.${color_reset}"|tee -a App.log
+#fi
 echo ""|tee -a App.log
 # raw 0x06 0x03
-echo -e " ${color_convert}BMC Warm Rest${color_reset} " |tee -a  App.log
-echo " Response below :" |tee -a App.log
-$i 0x03
-if [ ! $? -eq '0' ] ; then
-	echo -e "${color_red} BMC Warm Reset failed ${color_reset}"|tee -a App.log
-	FailCounter=$(($FailCounter+1))
-else
-	echo " BMC Warm Restting... Wait for BMC initializing..."
-	sleep 90
-	WRC=0
-	while [ ! $($i 0x01) ] && [ $WRC -le 35 ]
-	do
-		sleep 5
-		let WRC=$WRC+1
-	done
-		echo -e " ${color_blue}BMC Warm Rest finished${color_reset}."|tee -a App.log
-fi
-echo ""
+#echo -e " ${color_convert}BMC Warm Rest${color_reset} " |tee -a  App.log
+#echo " Response below :" |tee -a App.log
+#$i 0x03
+#if [ ! $? -eq '0' ] ; then
+#	echo -e "${color_red} BMC Warm Reset failed ${color_reset}"|tee -a App.log
+#	FailCounter=$(($FailCounter+1))
+#else
+#	echo " BMC Warm Restting... Wait for BMC initializing..."
+#	sleep 90
+#	WRC=0
+#	while [ ! "$($i 0x01)" ] && [ $WRC -le 35 ]
+#	do
+#		sleep 5
+#		let WRC=$WRC+1
+#	done
+#		echo -e " ${color_blue}BMC Warm Rest finished${color_reset}."|tee -a App.log
+#fi
+echo ""|tee -a App.log
 # raw 0x06 0x04
 echo -e " ${color_convert}BMC Self Test${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
@@ -185,6 +187,7 @@ else
 	'55') echo -e " ${color_green}No error${color_reset}. All Self Tests Passed${color_reset}."|tee -a App.log;;
 	'56') echo -e " ${color_red}Self Test function not implemented in this controller${color_reset}."|tee -a App.log;;
 	'57') echo -e " ${color_red}Corrupted or inaccessible data or devices${color_reset}"|tee -a App.log
+	      FailCounter=$(($FailCounter+1))
 		  if [ $BST2b1 -eq '1' ];then
 			echo -e " ${color_red}Cannot access SEL device${color_reset}"|tee -a App.log
 		  else
@@ -217,15 +220,17 @@ else
 		  if [ $BST2b8 -eq '1' ];then
 			echo -e " ${color_red}controller operational firmware corrupted${color_reset}"|tee -a App.log
 		  fi;;
-	'58') echo -e " ${color_red}Fatal hardware error (system should consider BMC inoperative). This will indicate that the controller hardware (including associated devices such as sensor hardware or RAM) may need to be repaired or replaced${color_reset}."|tee -a App.log;;
-	.) echo -e " ${color_green}Device-specific ‘internal’ failure. Refer to the particular device’s specification for definition${color_reset}."|tee -a App.log;;
+	'58') echo -e " ${color_red}Fatal hardware error (system should consider BMC inoperative). This will indicate that the controller hardware (including associated devices such as sensor hardware or RAM) may need to be repaired or replaced${color_reset}."|tee -a App.log 
+	FailCounter=$(($FailCounter+1));;
+	.) echo -e " ${color_green}Device-specific ‘internal’ failure. Refer to the particular device’s specification for definition${color_reset}."|tee -a App.log 
+	   FailCounter=$(($FailCounter+1));;
 	esac
 fi
 
 echo ""|tee -a App.log
 
 # raw 0x06 0x05
-echo -e " ${color_convert} Manufacturing Test On Command${color_reset} " |tee -a  App.log
+echo -e " ${color_convert} Manufacturing Test On Command${color_reset} "|tee -a App.log
 echo " Response below :" |tee -a App.log
 $i 0x05
 if [ ! $? -eq '0' ] ; then
@@ -256,7 +261,7 @@ do
 done
 if [ $ACPIFailCounter -eq '0' ];then
 	$i 0x06 0x80 0x80
-	echo -e "${color_blue} Set all ACPI Power State finished.${color_reset}"|tee -a App.log ;;
+	echo -e "${color_blue} Set all ACPI Power State finished.${color_reset}"|tee -a App.log
 	echo " Set APCI Power State to S0 and Device Power State D0..."
 fi
 
@@ -269,7 +274,7 @@ if [ ! $? -eq '0' ] ; then
 	echo -e "${color_red} Get ACPI Power State Command failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
 else
-	if [ "$i 0x07"=="00 00" ]
+	if [ "$i 0x07"=="00 00" ];then
 		$i 0x07 >> App.log
 		echo -e "${color_blue} Get ACPI Power State Command finished.${color_reset}"|tee -a App.log
 	fi
@@ -289,7 +294,7 @@ else
 fi
 echo ""|tee -a App.log
 
-# raw 0x06 0x08
+# raw 0x06 0x09
 echo -e " ${color_convert} Get NetFn Support Command${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
 $i 0x09 $Ch
@@ -299,7 +304,7 @@ if [ ! $? -eq '0' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x09 $Ch >> App.log
-	read GNS1 GNS2 GNS3 GNS4 GNS5 GNS6 GNS7 GNS8 GNS9 GNS10 GNS11 GNS12 GNS13 GNS14 GNS15 GNS16 GNS17 <<< $($i 0x04)
+	read GNS1 GNS2 GNS3 GNS4 GNS5 GNS6 GNS7 GNS8 GNS9 GNS10 GNS11 GNS12 GNS13 GNS14 GNS15 GNS16 GNS17 <<< $($i 0x09 $Ch)
 	for j in GNS{1..17}; do
 		eval temp=\$$j
 		temp=${D2B[$((16#$temp))]}
@@ -309,79 +314,194 @@ else
 		00) echo -e " ${color_green} No LUN 3 (11b) support${color_reset}"|tee -a App.log;;
 		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 3 (11b) support${color_reset}"|tee -a App.log;;
 		10) echo -e " ${color_green} Commands exist on LUN 3 (11b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
-		11) echo -e " ${color_red}LUN 3 (11b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red} LUN 3 (11b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
 	esac
 	case $GNS1b3$GNS1b4 in
 		00) echo -e " ${color_green} No LUN 2 (10b) support${color_reset}"|tee -a App.log;;
-		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 2 (10b) support${color_reset}"|tee -a App.log;;
+		01) echo -e " ${color_green} Base IPMI Copmmands exist on LUN 2 (10b) support${color_reset}"|tee -a App.log;;
 		10) echo -e " ${color_green} Commands exist on LUN 2 (10b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
-		11) echo -e " ${color_red}LUN 2 (10b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red} LUN 2 (10b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
 	esac
 	case $GNS1b5$GNS1b6 in
 		00) echo -e " ${color_green} No LUN 1 (01b) support${color_reset}"|tee -a App.log;;
 		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 1 (01b) support${color_reset}"|tee -a App.log;;
 		10) echo -e " ${color_green} Commands exist on LUN 1 (01b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
-		11) echo -e " ${color_red}LUN 1 (01b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red} LUN 1 (01b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
 	esac
 	case $GNS1b7$GNS1b8 in
 		00) echo -e " ${color_green} No LUN 0 (00b) support${color_reset}"|tee -a App.log;;
 		01) echo -e " ${color_green} Base IPMI Commands exist on LUN 0 (00b) support${color_reset}"|tee -a App.log;;
 		10) echo -e " ${color_green} Commands exist on LUN 0 (00b) support but some commands/operations may be restricted by firewall configuration ${color_reset}"|tee -a App.log;;
-		11) echo -e " ${color_red}LUN 0 (00b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
+		11) echo -e " ${color_red} LUN 0 (00b) support but this byte is reserved please check the Spec.${color_reset}"|tee -a App.log;;
 	esac
 	echo ""|tee -a App.log
-	if [ ! "$GNS1b7$GNS1b8"=="00" ];then
-		NetFnLUN0=NetFn pairs
-		tmp=${D2BS[$((16#$GNS2))]}${D2BS[$((16#$GNS3))]}${D2BS[$((16#$GNS4))]}${D2BS[$((16#$GNS5))]}
+	if [ ! $GNS1b7$GNS1b8 -eq "00" ];then
+		tmp="${D2BS[$((16#$GNS2))]} ${D2BS[$((16#$GNS3))]} ${D2BS[$((16#$GNS4))]} ${D2BS[$((16#$GNS5))]}"
 		ArrayNetFn=($tmp)
+		NetFnCounter0=0
 		for k in {0..31}
 		do
-			if [ ${ArrayNetFn[k]} -eq '1' ];then
-				NetFnLUN0="$NetFnLUN0 ($(($k*2)) $((($k*2)+1)))"
+			if [ ${ArrayNetFn[$k]} -eq "1" ];then
+				read htmp <<< `echo "obase=16; $(($k*2))"|bc`
+				#read htmp1 <<< `echo "obase=16; $((($k*2)+1))"|bc`
+				NetFnLUN0="$NetFnLUN0 0x$htmp"
+				NetFnCounter0=$(($NetFnCounter0+1))
 			fi
 		done
-		echo -e " ${color_green}$NetFnLUN0 is used for LUN 00b${color_reset}"|tee -a App.log
+		
+		echo -e " ${color_green} NetFn pairs $NetFnLUN0 is used for LUN 00b${color_reset}"|tee -a App.log
 		echo ""|tee -a App.log
 	fi
-	if [ ! "$GNS1b5$GNS1b6"=="00" ];then
-		NetFnLUN1=NetFn pairs
-		tmp=${D2BS[$((16#$GNS6))]}${D2BS[$((16#$GNS7))]}${D2BS[$((16#$GNS8))]}${D2BS[$((16#$GNS9))]}
+	if [ ! $GNS1b5$GNS1b6 -eq "00" ];then
+		tmp="${D2BS[$((16#$GNS6))]} ${D2BS[$((16#$GNS7))]} ${D2BS[$((16#$GNS8))]} ${D2BS[$((16#$GNS9))]}"
 		ArrayNetFn=($tmp)
+		NetFnCounter1=0
 		for k in {0..31}
 		do
-			if [ ${ArrayNetFn[k]} -eq '1' ];then
-				NetFnLUN1="$NetFnLUN1 ($(($k*2)) $((($k*2)+1)))"
+			if [ ${ArrayNetFn[$k]} -eq "1" ];then
+				read htmp <<< `echo "obase=16; $(($k*2))"|bc`
+				#read htmp1 <<< `echo "obase=16; $((($k*2)+1))"|bc`
+				NetFnLUN1="$NetFnLUN1 0x$htmp"
+				NNetFnCounter1=$(($NetFnCounter1+1))
 			fi
 		done
-		echo -e " ${color_green}$NetFnLUN1 is used for LUN 01b${color_reset}"|tee -a App.log
+		echo -e " ${color_green} NetFn pairs$NetFnLUN1 is used for LUN 01b${color_reset}"|tee -a App.log
 		echo ""|tee -a App.log
 	fi
-	if [ ! "$GNS1b3$GNS1b4"=="00" ];then
-		NetFnLUN2=NetFn pairs
-		tmp=${D2BS[$((16#$GNS10))]}${D2BS[$((16#$GNS11))]}${D2BS[$((16#$GNS12))]}${D2BS[$((16#$GNS13))]}
+	if [ ! $GNS1b3$GNS1b4 -eq "00" ];then
+		tmp="${D2BS[$((16#$GNS10))]} ${D2BS[$((16#$GNS11))]} ${D2BS[$((16#$GNS12))]} ${D2BS[$((16#$GNS13))]}"
 		ArrayNetFn=($tmp)
 		for k in {0..31}
 		do
-			if [ ${ArrayNetFn[k]} -eq '1' ];then
-				NetFnLUN2="$NetFnLUN2 ($(($k*2)) $((($k*2)+1)))"
+			if [ ${ArrayNetFn[$k]} -eq "1" ];then
+				read htmp <<< `echo "obase=16; $(($k*2))"|bc`
+				#read htmp1 <<< `echo "obase=16; $((($k*2)+1))"|bc`
+				NetFnLUN2="$NetFnLUN2 0x$htmp"
+				NetFnCounter2=$(($NetFnCounter2+1))
 			fi
 		done
-		echo -e " ${color_green}$NetFnLUN2 is used for LUN 10b${color_reset}"|tee -a App.log
+		echo -e " ${color_green} NetFn pairs$NetFnLUN2 is used for LUN 10b${color_reset}"|tee -a App.log
 		echo ""|tee -a App.log
 	fi
-	if [ ! "$GNS1b1$GNS1b2"=="00" ];then
-		NetFnLUN3=NetFn pairs
-		tmp=${D2BS[$((16#$GNS14))]}${D2BS[$((16#$GNS15))]}${D2BS[$((16#$GNS16))]}${D2BS[$((16#$GNS17))]}
+	if [ ! $GNS1b1$GNS1b2 -eq "00" ];then
+		tmp="${D2BS[$((16#$GNS14))]} ${D2BS[$((16#$GNS15))]} ${D2BS[$((16#$GNS16))]} ${D2BS[$((16#$GNS17))]}"
 		ArrayNetFn=($tmp)
 		for k in {0..31}
 		do
-			if [ ${ArrayNetFn[k]} -eq '1' ];then
-				NetFnLUN3="$NetFnLUN3 ($(($k*2)) $((($k*2)+1)))"
+			if [ ${ArrayNetFn[$k]} -eq "1" ];then	
+				read htmp <<< `echo "obase=16; $(($k*2))"|bc`
+				#read htmp1 <<< `echo "obase=16; $((($k*2)+1))"|bc`
+				NetFnLUN3="$NetFnLUN3 0x$htmp"
+				NetFnCounter3=$(($NetFnCounter3+1))
 			fi
 		done
-		echo -e " ${color_green}$NetFnLUN3 is used for LUN 11b${color_reset}"|tee -a App.log
+		echo -e " ${color_green} NetFn pairs$NetFnLUN3 is used for LUN 11b${color_reset}"|tee -a App.log
 		echo ""|tee -a App.log
 	fi
 	echo -e "${color_blue} Get NetFn Support in channel $Ch Command finished.${color_reset}"|tee -a App.log
 fi
+
 echo ""|tee -a App.log
+
+# raw 0x06 0x0a
+echo -e " ${color_convert} Get Command Support Command ${color_reset} " |tee -a  App.log
+echo  " This command will test which Netfn the SUT support "|tee -a App.log
+echo " Response below :" |tee -a App.log
+#if [ ! $GNS1b7$GNS1b8 -eq "00" ];then
+#	#eval read NFS{1..$NetFnCounter0} <<< "$NetFnLUN0"
+#	for j in $NetFnLUN0
+#	do
+#		read NFS{1..16} <<< $($i 0x0a $Ch $j 0x00)
+#		tmp="${D2BS[$((16#$NFS1))]} ${D2BS[$((16#$NFS2))]} ${D2BS[$((16#$NFS3))]} ${D2BS[$((16#$NFS4))]} ${D2BS[$((16#$NFS5))]} ${D2BS[$((16#$NFS6))]} ${D2BS[$((16#$NFS7))]} ${D2BS[$((16#$NFS8))]}"
+#		tmp1=" ${D2BS[$((16#$NFS9))]} ${D2BS[$((16#$NFS10))]} ${D2BS[$((16#$NFS11))]} ${D2BS[$((16#$NFS12))]} ${D2BS[$((16#$NFS13))]} ${D2BS[$((16#$NFS14))]} ${D2BS[$((16#$NFS15))]} ${D2BS[$((16#$NFS16))]}"
+#		echo $tmp$tmp1
+#		#寫到都不知道在寫甚麼了.. 崩潰 By Lily_Hou 
+#		ArrayNFS=($tmp$tmp1)
+#		for k in {0..127}
+#		do
+#			if [ ${ArrayNFS[$k]} -eq "0" ];then
+#				read htmp <<< `echo "obase=16; $k"|bc`
+#				#讀取每個NetFn的可用command
+#				CmdLUN0="$CmdLUN0 0x$htmp"
+#			fi
+#		done
+#		read l <<< `echo "obase=16;$(($j+0x40))"|bc`
+#		echo $l
+#		read NFS{1..16} <<< $($i 0x0a $Ch 0x$l 0x00)
+#		tmp=
+#		tmp1=
+#		ArrayNFS=
+#		tmp="${D2BS[$((16#$NFS1))]} ${D2BS[$((16#$NFS2))]} ${D2BS[$((16#$NFS3))]} ${D2BS[$((16#$NFS4))]} ${D2BS[$((16#$NFS5))]} ${D2BS[$((16#$NFS6))]} ${D2BS[$((16#$NFS7))]} ${D2BS[$((16#$NFS8))]}"
+#		tmp1=" ${D2BS[$((16#$NFS9))]} ${D2BS[$((16#$NFS10))]} ${D2BS[$((16#$NFS11))]} ${D2BS[$((16#$NFS12))]} ${D2BS[$((16#$NFS13))]} ${D2BS[$((16#$NFS14))]} ${D2BS[$((16#$NFS15))]} ${D2BS[$((16#$NFS16))]}"
+#		ArrayNFS=($tmp$tmp1)
+#		for k in {0..127}
+#		do
+#			if [ ${ArrayNFS[$k]} -eq "0" ];then
+#				read htmp <<< `echo "obase=16; $(($k+0x80))"|bc`
+#				#讀取每個NetFn的可用command
+#				CmdLUN0="$CmdLUN0 0x$htmp"
+#			fi
+#		done
+#
+#		echo -e " ${color_green} NetFn $j available command :$CmdLUN0 ${color_reset}"|tee -a App.log
+#	done	
+#fi
+for j in {0..13}
+do
+echo $j
+case $j in
+	0) tmp="Chassis Request";;
+	1) tmp="Chassis Respond";;
+	2) tmp="Bridge Request";;
+	3) tmp="Bridge Respond";;
+	4) tmp="Sensor/Event Request";;
+	5) tmp="Sensor/Event Respond";;
+	6) tmp="App Request";;
+	7) tmp="App Responde";;
+	8) tmp="Firmware Request";;
+	9) tmp="Firmware Respond";;
+	10) tmp="Storage Request" && j=a;;
+	11) tmp="Storage Respond" && j=b;;
+	12) tmp="Transport Request" && j=c;;
+	13) tmp="Transport Respond" && j=d;;
+esac
+$i 0x0a $Ch 0x$j 0x00
+if [ ! $? -eq '0' ] ; then
+	$i 0x0a $Ch 0x$j 0x00 >> App.log
+	echo -e "${color_red} Get $tmp (0x$j) Command Support Command (0x00-0x7f) failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	read  GCS{1..16} <<< $($i 0x0a $Ch 0x$j 0x00)
+	for j in GCS{1..16}; do
+		eval temp=\$$j
+		echo $temp
+	done
+	echo "temp = $temp"
+	ArrayGCS=($temp)
+	echo "array = $ArrayGCS"
+	sleep 50
+	m=0
+	for k in {0..127} 
+	do
+		if [ ${ArrayGCS[$k]} -eq '0' ];then
+			read htemp <<< `echo "obase=16; $k"|bc`
+			Cmd[$m]="$htemp"
+			let m=$m+1
+		fi
+	done
+	echo $Cmd 
+fi
+read k <<< `echo "obase=16; $((0x$j+0x40))"|bc`
+$i 0x0a $Ch 0x$k 0x00
+if [ ! $? -eq '0' ] ; then
+	$i 0x0a $Ch 0x$k 0x00 >> App.log
+	echo -e "${color_red} Get $tmp (0x$k) Command Support Command (0x80-0xff) failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+else
+	echo -e "${color_blue} Get $tmp (0x$k) Command Support Comand finished.${color_reset}"|tee -a App.log
+fi
+
+done
+echo ""|tee -a App.log
+
+

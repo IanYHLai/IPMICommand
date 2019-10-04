@@ -1,6 +1,6 @@
 #!/bin/bash
 
-echo -e "$color_redRemove and backup the previous log as date format...${color_reset}"
+echo -e "${color_red}Remove and backup the previous log as date format...${color_reset}"
 if [ -f "Chassis.log" ]; then
 	cp Chassis.log $(date +%Y%m%d)_Chassis.log && rm -f Chassis.log
 fi

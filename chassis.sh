@@ -142,7 +142,7 @@ else
 	fi
 	echo ''
 	#Last power event
-	if [ "CS2b4" -eq '1' ] ;then
+	if [ "$CS2b4" -eq '1' ] ;then
 		echo -e " The last 'Power is on' state was entered via ${color_green}IPMI command${color_reset}"|tee -a Chassis.log
 	fi
 	case "$CS2b3$CS2b2$CS2b1$CS2b0" in
@@ -165,25 +165,25 @@ else
 		10) echo -e " Chassis identify state = ${color_green}Indefinite On${color_reset}"|tee -a Chassis.log;;
 		11) echo -e " This bit is ${color_red}Reserve${color_reset}."|tee -a Chassis.log;;
 	esac
-	if [ "CS3b5" -eq '1' ];then
+	if [ "$CS3b5" -eq '1' ];then
 		echo -e " ${color_red}Cooling/fan fault${color_reset} detected."|tee -a Chassis.log
 	else 
 		echo -e " ${color_green}Cooling/fan works good${color_reset}."|tee -a Chassis.log
 	fi
 	echo ''|tee -a Chassis.log
-	if [ "CS3b6" -eq '1' ];then
+	if [ "$CS3b6" -eq '1' ];then
 		echo -e " ${color_red}Drive Fault detected${color_reset}."|tee -a Chassis.log
 	else 
 		echo -e " ${color_green}All Drives works good${color_reset}."|tee -a Chassis.log
 	fi
 	echo ''|tee -a Chassis.log
-	if [ "CS3b7" -eq '1' ];then
+	if [ "$CS3b7" -eq '1' ];then
 		echo -e " Front Panel Lockout ${color_green}active${color_reset} (power off and reset via Chassis push-buttons disabled.)"|tee -a Chassis.log
 	else 
 		echo -e " Front Panel Lockout ${color_green}deactive${color_reset} (power off and reset via Chassis push-buttons ensabled.)"|tee -a Chassis.log
 	fi
 	echo '' |tee -a Chassis.log
-		if [ "CS3b8" -eq '1' ];then
+		if [ "$CS3b8" -eq '1' ];then
 		echo -e " Chassis intrusion ${color_green}active${color_reset}."|tee -a Chassis.log
 	else 
 		echo -e " Chassis intrusion ${color_green}deactive${color_reset}."|tee -a Chassis.log
@@ -194,42 +194,42 @@ else
 		echo -e " The SUT ${color_red}doesn't support${color_reset} getting 'Front Panel Button Capabilities and disable/enable status'"
 	fi
 	
-	if [ "CS4b1" -eq '1' ];then
+	if [ "$CS4b1" -eq '1' ];then
 		echo -e " ${color_green}Standby (sleep) button disable allowed${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_red}Standby (sleep) button disable not allowed${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b2" -eq '1' ];then
+	if [ "$CS4b2" -eq '1' ];then
 		echo -e " ${color_green}Diagnostic Interrupt button disable allowed${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_red}Diagnostic Interrupt button disable not allowed${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b3" -eq '1' ];then
+	if [ "$CS4b3" -eq '1' ];then
 		echo -e " ${color_green}Reset button disable allowed${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_red}Reset button disable not allowed${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b4" -eq '1' ];then
+	if [ "$CS4b4" -eq '1' ];then
 		echo -e " ${color_green}Power off button disable allowed${color_reset} (in the case there is a single combined power/standby (sleep) button, disabling power off also disables sleep requests via that button.)."|tee -a Chassis.log
 	else
 		echo -e " ${color_red}Power off button disable not allowed${color_reset} (in the case there is a single combined power/standby (sleep) button, disabling power off also disables sleep requests via that button.)."|tee -a Chassis.log
 	fi
-	if [ "CS4b5" -eq '1' ];then
+	if [ "$CS4b5" -eq '1' ];then
 		echo -e " ${color_red}Standby (sleep) button disabled${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_green}Standby (sleep) button enabled${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b6" -eq '1' ];then
+	if [ "$CS4b6" -eq '1' ];then
 		echo -e " ${color_red}Diagnostic Interrupt button disabled${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_green}Diagnostic Interrupt button enabled${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b7" -eq '1' ];then
+	if [ "$CS4b7" -eq '1' ];then
 		echo -e " ${color_red}Reset button disabled${color_reset}."|tee -a Chassis.log
 	else
 		echo -e " ${color_green}Reset button enabled${color_reset}."|tee -a Chassis.log
 	fi
-	if [ "CS4b8" -eq '1' ];then
+	if [ "$CS4b8" -eq '1' ];then
 		echo -e " ${color_red}Power off button disabled${color_reset}(in the case there is a single combined power/standby (sleep) button, then this indicates that sleep requests via that button are also disabled.)."|tee -a Chassis.log
 	else
 		echo -e " ${color_green}Power off button enabled${color_reset}(in the case there is a single combined power/standby (sleep) button, then this indicates that sleep requests via that button are also disabled.)."|tee -a Chassis.log

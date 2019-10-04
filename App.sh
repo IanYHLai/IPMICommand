@@ -448,7 +448,6 @@ echo " Response below :" |tee -a App.log
 #fi
 for j in {0..13}
 do
-echo $j
 case $j in
 	0) tmp="Chassis Request";;
 	1) tmp="Chassis Respond";;

@@ -73,7 +73,7 @@ else
 	else
 		echo -e " The Bridge Device adderess is ${color_green}$CC6.${color_reset}"|tee -a Chassis.log
 	fi
-	
+	echo ""|tee -a Chassis.log
 	echo -e " The SDR Device address is ${color_green}$CC5${color_reset}." |tee -a Chassis.log
 	echo ""|tee -a Chassis.log
 	echo -e "${color_blue} Get Chassis Capabiliteis command finished${color_reset}"|tee -a Chassis.log
@@ -481,8 +481,8 @@ fi
 echo ""|tee -a Chassis.log
 
 if [ $FailCounter -eq '0' ]; then
-	echo -e "${color_blue} Chassis function test finished.${color_reset}"
+	echo -e "${color_blue} Chassis function test sucess.${color_reset}"|tee -a Chassis.log
 else
-	echo -e "${color_red} Chassis function test finished but has some command failed check the Chassis.log please.${color_reset}"
+	echo -e "${color_red} Chassis function test finished but has some command failed check the Chassis.log please.${color_reset}"| tee -a Chassis.log
 fi
 

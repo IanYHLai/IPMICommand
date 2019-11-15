@@ -478,7 +478,6 @@ else
 	echo "temp = $temp"
 	ArrayGCS=($temp)
 	echo "array = $ArrayGCS"
-	sleep 50
 	m=0
 	for k in {0..127} 
 	do

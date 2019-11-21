@@ -404,9 +404,9 @@ fi
 echo ""|tee -a App.log
 
 # raw 0x06 0x0a
-echo -e " ${color_convert} Get Command Support Command ${color_reset} " |tee -a  App.log
-echo  " This command will test which Netfn the SUT support "|tee -a App.log
-echo " Response below :" |tee -a App.log
+#echo -e " ${color_convert} Get Command Support Command ${color_reset} " |tee -a  App.log
+#echo  " This command will test which Netfn the SUT support "|tee -a App.log
+#echo " Response below :" |tee -a App.log
 #if [ ! $GNS1b7$GNS1b8 -eq "00" ];then
 #	#eval read NFS{1..$NetFnCounter0} <<< "$NetFnLUN0"
 #	for j in $NetFnLUN0
@@ -446,60 +446,431 @@ echo " Response below :" |tee -a App.log
 #		echo -e " ${color_green} NetFn $j available command :$CmdLUN0 ${color_reset}"|tee -a App.log
 #	done	
 #fi
-for j in {0..13}
-do
-case $j in
-	0) tmp="Chassis Request";;
-	1) tmp="Chassis Respond";;
-	2) tmp="Bridge Request";;
-	3) tmp="Bridge Respond";;
-	4) tmp="Sensor/Event Request";;
-	5) tmp="Sensor/Event Respond";;
-	6) tmp="App Request";;
-	7) tmp="App Responde";;
-	8) tmp="Firmware Request";;
-	9) tmp="Firmware Respond";;
-	10) tmp="Storage Request" && j=a;;
-	11) tmp="Storage Respond" && j=b;;
-	12) tmp="Transport Request" && j=c;;
-	13) tmp="Transport Respond" && j=d;;
-esac
-$i 0x0a $Ch 0x$j 0x00
-if [ ! $? -eq '0' ] ; then
-	$i 0x0a $Ch 0x$j 0x00 >> App.log
-	echo -e "${color_red} Get $tmp (0x$j) Command Support Command (0x00-0x7f) failed ${color_reset}"|tee -a App.log
-	FailCounter=$(($FailCounter+1))
-else
-	read  GCS{1..16} <<< $($i 0x0a $Ch 0x$j 0x00)
-	for j in GCS{1..16}; do
-		eval temp=\$$j
-		echo $temp
-	done
-	echo "temp = $temp"
-	ArrayGCS=($temp)
-	echo "array = $ArrayGCS"
-	m=0
-	for k in {0..127} 
-	do
-		if [ ${ArrayGCS[$k]} -eq '0' ];then
-			read htemp <<< `echo "obase=16; $k"|bc`
-			Cmd[$m]="$htemp"
-			let m=$m+1
+#for j in {0..13}
+#do
+#case $j in
+#	0) tmp="Chassis Request";;
+#	1) tmp="Chassis Respond";;
+#	2) tmp="Bridge Request";;
+#	3) tmp="Bridge Respond";;
+#	4) tmp="Sensor/Event Request";;
+#	5) tmp="Sensor/Event Respond";;
+#	6) tmp="App Request";;
+#	7) tmp="App Responde";;
+#	8) tmp="Firmware Request";;
+#	9) tmp="Firmware Respond";;
+#	10) tmp="Storage Request" && j=a;;
+#	11) tmp="Storage Respond" && j=b;;
+#	12) tmp="Transport Request" && j=c;;
+#	13) tmp="Transport Respond" && j=d;;
+#esac
+#$i 0x0a $Ch 0x$j 0x00
+#if [ ! $? -eq '0' ] ; then
+#	$i 0x0a $Ch 0x$j 0x00 >> App.log
+#	echo -e "${color_red} Get $tmp (0x0$j) Command Support Command (0x00-0x7f) failed ${color_reset}"|tee -a App.log
+#	FailCounter=$(($FailCounter+1))
+#else
+#	Cmd[]=()
+#	read  GCS{1..16} <<< $($i 0x0a $Ch 0x$j 0x00)
+#	for j in GCS{1..16}; do
+#		eval temp=\$$j
+#		temp=${D2B[$((16#$temp))]}
+#		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+#	for k in GCS$j'b{1..8}' 
+#	do
+#		eval temp=\$$k
+#		if [ $temp -eq '0' ];then
+#			Cmd[]+=$k
+#		fi
+#	done
+#	echo $Cmd 
+#	echo -e "${color_green} Get command support $Cmd ${color_reset}"|tee -a App.log
+#	echo "Depending on the value of the “Operation” parameter passed in the request:"
+#	echo "byte 1, bit 0 corresponds to command 00h"
+#	echo "byte 1, bit 7 corresponds to command 07h"
+#	echo "…"
+#	echo "byte 16, bit 0 correspond to command 78h"
+#	echo "byte 16, bit 7 corresponds to command 7Fh"
+#fi
+#	read k <<< `echo "obase=16; $((0x$j+0x40))"|bc`
+#	$i 0x0a $Ch 0x$k 0x00
+#	if [ ! $? -eq '0' ] ; then
+#		$i 0x0a $Ch 0x$k 0x00 >> App.log
+#		echo -e "${color_red} Get $tmp (0x$k) Command Support Command (0x80-0xff) failed ${color_reset}"|tee -a App.log
+#		FailCounter=$(($FailCounter+1))
+#	else
+#		Cmd[]=()
+#		read  GCS{1..16} <<< $($i 0x0a $Ch 0x$k 0x00)
+#		for j in GCS{1..16}; do
+#		eval temp=\$$j
+#		temp=${D2B[$((16#$temp))]}
+#		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+#		for k in GCS$j'b{1..8}' 
+#		do
+#			eval temp=\$$k
+#			if [ $temp -eq '0' ];then
+#				Cmd[]+=$k
+#			fi
+#		done
+#		echo $Cmd 
+#		echo -e "${color_green} Get command support $Cmd ${color_reset}"|tee -a App.log
+#		echo "Depending on the value of the “Operation” parameter passed in the request:"
+#		echo "byte 1, bit 0 corresponds to command 80h"
+#		echo "byte 1, bit 7 corresponds to command 87h"
+#		echo "…"
+#		echo "byte 16, bit 0 corresponds to command F8h"
+#		echo "byte 16, bit 7 corresponds to command FFh"
+#		echo -e "${color_blue} Get $tmp (0x$k) Command Support Comand finished.${color_reset}"|tee -a App.log
+#	fi
+#	done
+#done
+#echo ""|tee -a App.log
+#done 
+# raw 0x06 0x0b
+#echo -e " ${color_convert} Get Command Sub-function Support ${color_reset} " |tee -a  App.log
+#echo " Response below :" |tee -a App.log
+#for j in {0..13}
+#do
+#case $j in
+#	0) tmp="Chassis Request";;
+#	1) tmp="Chassis Respond";;
+#	2) tmp="Bridge Request";;
+#	3) tmp="Bridge Respond";;
+#	4) tmp="Sensor/Event Request";;
+#	5) tmp="Sensor/Event Respond";;
+#	6) tmp="App Request";;
+#	7) tmp="App Responde";;
+#	8) tmp="Firmware Request";;
+#	9) tmp="Firmware Respond";;
+#	10) tmp="Storage Request" && j=a;;
+#	11) tmp="Storage Respond" && j=b;;
+#	12) tmp="Transport Request" && j=c;;
+#	13) tmp="Transport Respond" && j=d;;
+#esac
+#$i 0x0a $Ch 0x0$j 0x00
+#if [ ! $? -eq '0' ] ; then
+#	$i 0x0a $Ch 0x0$j 0x00 >> App.log
+#	echo -e "${color_red} Get $tmp (0x0$j) Command Support Command (0x00-0x7f) failed ${color_reset}"|tee -a App.log
+#	FailCounter=$(($FailCounter+1))
+#else
+#	read  GCS{1..16} <<< $($i 0x0a $Ch 0x$j 0x00)
+#	for j in GCS{1..16}; do
+#		eval temp=\$$j
+#		temp=${D2B[$((16#$temp))]}
+#		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+#	done
+#
+#	m=0
+#	for k in {0..127} 
+#	do
+#		if [ ${ArrayGCS[$k]} -eq '0' ];then
+#			read htemp <<< `echo "obase=16; $k"|bc`
+#			Cmd[$m]="$htemp"
+#			let m=$m+1
+#		fi
+#	done
+#	echo $Cmd 
+#fi
+
+#done
+echo ""|tee -a App.log
+
+#Watchdog
+
+echo -e " ${color_convert} Set Watchdog timer Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+echo " Test BIOS FRB2, BIOS/POST, 011b = OS Load, 100b = SMS/OS timer" |tee -a App.log
+for i in {1..4};do
+	for j in 10 20 30;
+		$i 0x24 0x0$i 0x$j 0x01 0x3e 0x10 0x10
+		if [ ! $? -eq '0' ] ; then
+			$i 0x24 0x0$i 0x$j 0x01 0x3e 0x10 0x10 >> App.log
+			echo "timer use : $i, pre-timeout interrupt : $j"|tee -a App.log
+			echo -e "${color_red} Set Watchdog timer Command failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+		else
+			echo "Reset Watchdog timer.."|tee -a App.log
+			$i 0x22 
+			sleep 3 
+			$i sel elist |grep -i watchdog |tee -a App.log
+			echo -e "${color_blue} Set & Reset Watchdog Command finished.${color_reset}"|tee -a App.log
 		fi
 	done
-	echo $Cmd 
-fi
-read k <<< `echo "obase=16; $((0x$j+0x40))"|bc`
-$i 0x0a $Ch 0x$k 0x00
-if [ ! $? -eq '0' ] ; then
-	$i 0x0a $Ch 0x$k 0x00 >> App.log
-	echo -e "${color_red} Get $tmp (0x$k) Command Support Command (0x80-0xff) failed ${color_reset}"|tee -a App.log
-	FailCounter=$(($FailCounter+1))
-else
-	echo -e "${color_blue} Get $tmp (0x$k) Command Support Comand finished.${color_reset}"|tee -a App.log
-fi
-
 done
 echo ""|tee -a App.log
 
+#Set BMC Global Enable
+echo -e " ${color_convert} Set BMC Global Enables Command to all enable ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x2e 0x0f
+if [ ! $? -eq '0' ] ; then
+			$i 0x2e 0x0f >> App.log
+			echo -e "${color_red} Set BMC Global Enables Command to all enable failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+		else
+			if [ "$($i 0x2f)"=="0f"]; then
+				echo -e "${color_green} Set BMC Global Enables Command to all enable success ${color_reset}"|tee -a App.log
+			else
+				echo -e "${color_red} Set BMC Global Enables Command to all enable fail that response not correct ${color_reset}"|tee -a App.log
+			fi
+fi
+echo -e "${color_blue} Set BMC Global all Enable Command finished.${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
 
+#Clear Message flags command
+echo -e " ${color_convert} Clear Message Flags Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x2e 0x30 0x0b
+if [ ! $? -eq '0' ] ; then
+			$i 0x2e 0x30 0x0b >> App.log
+			echo -e "${color_red} Clear Message Flags Command failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+		else
+			if [ "$($i 0x31)"=="0b"]; then
+				echo -e "${color_green} Clear Message Flags Command success ${color_reset}"|tee -a App.log
+			else
+				echo -e "${color_red} Clear Message Flags Command fail that response not correct ${color_reset}"|tee -a App.log
+			fi
+fi
+echo -e "${color_blue} Clear Message Flags Command finished.${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Enable Message Channel Receive Command
+echo -e " ${color_convert} Enable Message Channel Receive Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x2e 0x32 $Ch 0x10
+if [ ! $? -eq '0' ] ; then
+			$i 0x2e 0x32 0x10 >> App.log
+			echo -e "${color_red} Enable Message Channel Receive Command failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+		else
+			if [ "$($i 0x32 $Ch 0x10)"=="${Ch:3:4} 01"]; then
+				echo -e "${color_green} Channel $Ch is enable to Receive Message${color_reset}"|tee -a App.log
+			else
+				if [ "$($i 0x32 $Ch 0x10)"=="${Ch:3:4} 00"]; then
+				echo -e "${color_red} Channel $Ch is disable to Receive Message ${color_reset}"|tee -a App.log
+			fi
+fi
+echo -e "${color_blue} Enable Message Channel Receive command finished.${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Send & Get messages
+echo -e " ${color_convert} Send & Get messages Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x34 0x0f 0x01
+if [ ! $? -eq '0' ] ; then
+			$i 0x34 0x0f 0x01 >> App.log
+			echo -e "${color_red} Send & Get messages Command failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+		else
+			if [ "$($i 0x33)"=="0f 01"]; then
+				echo -e "${color_green} Send & Get messages success ${color_reset}"|tee -a App.log
+			else
+				echo -e "${color_red} Send & Get messages Command fail that response not correct ${color_reset}"|tee -a App.log
+			fi
+fi
+echo -e "${color_blue} Send & Get messages command finished.${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Read Event Message Buffer Command
+echo -e " ${color_convert} Read Event Message Buffer Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+ipmitool event 1 
+$i 0x35
+if [ ! $? -eq '0' ] ; then
+		$i 0x35 >> App.log
+		echo -e "${color_red} Read Event Message Buffer Command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		$i 0x35 |tee -a App.log
+		echo -e "${color_green} Read Event Message Buffer Command success ${color_reset}"|tee -a App.log
+fi
+echo -e "${color_blue} Read Event Message Buffer Command finished ${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Get Get BT Interface Capabilities
+echo -e " ${color_convert} Get BT Interface Capabilities Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x36
+if [ ! $? -eq '0' ] ; then
+		$i 0x36 >> App.log
+		echo -e "${color_red} Get BT Interface Capabilities Command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		for j in GBI{1..5}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		echo -e "${color_green} There's $((16#$GBI1)) Number of outstanding requests supported ${color_reset}"|tee -a App.log
+		echo -e "${color_green} The largest value input allowed in first byte is $((16#$GBI2)) ${color_reset}"|tee -a App.log
+		echo -e "${color_green} The largest value output allowed in first byte is $((16#$GBI3))${color_reset}"|tee -a App.log
+		echo -e "${color_green} BMC Request-to-Response time is $((16#$GBI4))(in seconds) ${color_reset}"|tee -a App.log
+		echo -e "${color_green} Recommended retries is $((#16$GBI5))${color_reset}"|tee -a App.log
+		echo -e "${color_green} Get BT Interface Capabilities Command success ${color_reset}"|tee -a App.log
+fi
+echo -e "${color_blue} Get Get BT Interface Capabilities Command finished ${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Get Device GUID Command
+echo -e " ${color_convert} Get Device GUID Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x37
+if [ ! $? -eq '0' ] ; then
+		$i 0x37 >> App.log
+		echo -e "${color_red} Get Device GUID Command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		$i 0x37 |tee -a App.log
+		echo -e "${color_green} Get Device GUID Command success ${color_reset}"|tee -a App.log
+fi
+echo -e "${color_blue} Get Device GUID Command finished ${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Get Channel Authentication Capabilities Command
+echo -e " ${color_convert} Get Channel Authentication Capabilities Command ${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+echo -e " ${color_convert} Channel Authentication Capabilities of Backward compatible with IPMI v1.5 Command ${color_reset} " |tee -a  App.log
+for $j in {1..4}; do
+	case $j in 
+	1) Auth=Callback;;
+	2) Auth=User;;
+	3) Auth=Operator;;
+	4) Auth=Admin;;
+	esac
+	$i 0x38 0x01 0x0$j
+	if [ ! $? -eq '0' ] ; then
+		$i 0x38 0x01 0x0$j >> App.log
+		echo -e "${color_red} Get Channel Authentication Capabilities Command failed with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		$i 0x38 0x01 0x0$j |tee -a App.log
+		for k in GCAC{1..8}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $k'b1' $k'b2' $k'b3' $k'b4' $k'b5' $k'b6' $k'b7' $k'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		echo -e "${color_green} Channel number $GCAC1 ${color_reset}"|tee -a App.log
+		if [ $GCAC2b1 -eq '1' ]
+			echo -e "${color_green} IPMI v2.0+ extended capabilities available ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b1 -eq '0' ]
+			echo -e "${color_green} IPMI v1.5 support only ${color_reset}"|tee -a App.log
+		fi
+		echo -e "${color_green} IPMI v1.5 Authentication type(s) enabled for given Requested Maximum Privilege Level${color_reset}"|tee -a App.log
+		if [ $GCAC2b3 -eq '1' ]
+			echo -e "${color_green} OEM proprietary is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} OEM proprietary is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b4 -eq '1' ]
+			echo -e "${color_green} straight password / key is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} straight password / key is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b6 -eq '1' ]
+			echo -e "${color_green} MD5 is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} MD5 is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b7 -eq '1' ]
+			echo -e "${color_green} MD2 is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} MD2 is not support ${color_reset}"|tee -a App.log
+		fi		
+		if [ $GCAC3b4 -eq '1' ]
+			echo -e "${color_red} Per-message Authentication is disabled ${color_reset}"|tee -a App.log
+		else 
+			echo -e "${color_green} Per-message Authentication is enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b5 -eq '1' ]
+			echo -e "${color_red} User Level Authentication is disabled ${color_reset}"|tee -a App.log
+		else 
+			echo -e "${color_green} User Level Authentication is enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b6 -eq '1' ]
+			echo -e "${color_red} Non-null usernames enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b7 -eq '1' ]
+			echo -e "${color_green} Null usernames enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b8 -eq '1' ]
+			echo -e "${color_green} Anonymous Login enabled ${color_reset}"|tee -a App.log
+		fi
+		
+		echo -e "${color_green} Get Channel Authentication Capabilities Command success with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
+	fi
+	
+	echo -e " ${color_convert} Channel Authentication Capabilities of IPMI v2.0+ ${color_reset} " |tee -a  App.log	$i 0x38 0x81 0x0$j
+	if [ ! $? -eq '0' ] ; then
+		$i 0x38 0x81 0x0$j >> App.log
+		echo -e "${color_red} Get Channel Authentication Capabilities Command failed with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		$i 0x38 0x81 0x0$j |tee -a App.log
+		for k in GCAC{1..8}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $k'b1' $k'b2' $k'b3' $k'b4' $k'b5' $k'b6' $k'b7' $k'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		echo -e "${color_green} Channel number $GCAC1 ${color_reset}"|tee -a App.log
+		if [ $GCAC2b1 -eq '1' ]
+			echo -e "${color_green} IPMI v2.0+ extended capabilities available ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b1 -eq '0' ]
+			echo -e "${color_green} IPMI v1.5 support only ${color_reset}"|tee -a App.log
+		fi
+		echo -e "${color_green} IPMI v1.5 Authentication type(s) enabled for given Requested Maximum Privilege Level${color_reset}"|tee -a App.log
+		if [ $GCAC2b3 -eq '1' ]
+			echo -e "${color_green} OEM proprietary is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} OEM proprietary is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b4 -eq '1' ]
+			echo -e "${color_green} straight password / key is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} straight password / key is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b6 -eq '1' ]
+			echo -e "${color_green} MD5 is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} MD5 is not support ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC2b7 -eq '1' ]
+			echo -e "${color_green} MD2 is support ${color_reset}"|tee -a App.log
+		else
+			echo -e "${color_red} MD2 is not support ${color_reset}"|tee -a App.log
+		fi		
+		if [ $GCAC3b3 -eq '1' ]
+			echo -e "${color_red} KG status (two-key login status) is set to non-zero value ${color_reset}"|tee -a App.log
+		else 
+			echo -e "${color_green} KG status (two-key login status) is set to default (all 0’s) ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b4 -eq '1' ]
+			echo -e "${color_red} Per-message Authentication is disabled ${color_reset}"|tee -a App.log
+		else 
+			echo -e "${color_green} Per-message Authentication is enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b5 -eq '1' ]
+			echo -e "${color_red} User Level Authentication is disabled ${color_reset}"|tee -a App.log
+		else 
+			echo -e "${color_green} User Level Authentication is enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b6 -eq '1' ]
+			echo -e "${color_red} Non-null usernames enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b7 -eq '1' ]
+			echo -e "${color_green} Null usernames enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC3b8 -eq '1' ]
+			echo -e "${color_green} Anonymous Login enabled ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC4b7 -eq '1' ]
+			echo -e "${color_green} Channel supports IPMI v2.0 connections ${color_reset}"|tee -a App.log
+		fi
+		if [ $GCAC4b8 -eq '1' ]
+			echo -e "${color_green} Channel supports IPMI v1.5 connections ${color_reset}"|tee -a App.log
+		fi
+		echo -e "${color_green} Get Channel Authentication Capabilities Command success with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
+	fi
+done

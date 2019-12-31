@@ -697,6 +697,7 @@ if [ ! $? -eq '0' ] ; then
 		echo -e "${color_red} Get BT Interface Capabilities Command failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
 	else
+		read GBI1 GBI2 GBI3 GBI4 GBI5 <<< $($i 0x36)
 		for j in GBI{1..5}; do
 			eval temp=\$$j
 			temp=${D2B[$((16#$temp))]}
@@ -874,3 +875,103 @@ for $j in {1..4}; do
 		echo -e "${color_green} Get Channel Authentication Capabilities Command success with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
 	fi
 done
+
+echo ""|tee -a App.log
+
+#Get session Information
+echo -e " ${color_convert} Get session Information command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x3d 0x00
+if [ ! $? -eq '0' ] ; then
+		$i 0x3d 0x00 >> App.log
+		echo -e "${color_red} Get session Information failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		read GSI1 GSI2 GSI3 GSI4 GSI5 GSI6 <<< $($i 0x3d 0x00)
+		for j in GSI{1..6}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		if [ "$GSI1"=="00" ]
+			echo -e " There's ${color_green}no session handle assigned to active session${color_reset} presently. "|tee -a App.log
+			echo -e " There's ${color_green}$((16#$GSI2)) possible active sessions${color_reset} in SUT. "|tee -a App.log
+			echo -e " There's ${color_green}no active session${color_reset} currently. "|tee -a App.log
+		else 		
+			echo -e " There's ${color_green}$((16#$GSI1)) session handle ${color_reset}to active session presently. "|tee -a App.log
+			echo -e " There's ${color_green}$((16#$GSI2)) possible active sessions${color_reset} in SUT. "|tee -a App.log
+			echo -e " There's ${color_green}$((16#$GSI3)) active sessions ${color_reset}in SUT currently. "|tee -a App.log
+			echo -e " The UserID for this session is ${color_green}$((16#$GSI4)). ${color_reset}"|tee -a App.log
+			echo -e " Operating Privilege Level is ${color_green}0x$GSI5. ${color_reset}"|tee -a App.log
+			if [ $GSI6b4 -eq '1' ]
+				echo -e " The session is ${color_green}IPMI v2.0/RMCP+ protocol. ${color_reset}"|tee -a App.log
+				echo -e " The session is established via channel ${color_green}$((16#$GSI6b5$GSI6b6$GSI6b7$GSI6b8)). ${color_reset}"|tee -a App.log
+			fi
+		fi
+fi
+echo -e "${color_blue} Get session Information command finished ${color_reset}"|tee -a App.log
+echo ""|tee -a App.log
+
+#Get Channel Info Command
+echo -e " ${color_convert} Get Channel Info Command command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x42 $Ch
+if [ ! $? -eq '0' ] ; then
+		$i 0x42 $Ch >> App.log
+		echo -e "${color_red} Get Channel Info Command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+	else
+		read GCI1 GCI2 GCI3 GCI4 GCI5 GCI6 GCI7 GCI8 GCI9 <<< $($i 0x42 0x00)
+		for j in GCI{1..9}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		echo -e " Actual channel number is ${color_green}0x$GCI1. ${color_reset}"|tee -a App.log
+		case $k in $GCI2
+			'01')CT="IPMB (I2C)";;
+			'02')CT="ICMB v1.0";;
+			'03')CT="ICMB v0.9";;
+			'04')CT="802.3 LAN";;
+			'05')CT="Asynch. Serial/Modem (RS-232)";;
+			'06')CT="Other LAN";;
+			'07')CT="PCI SMBus";;
+			'08')CT="SMBus v1.0/1.1";;
+			'09')CT="SMBus v2.0";;
+			'0a')CT="reserved for USB 1.x";;
+			'0b')CT="reserved for USB 2.x";;
+			'0c')CT="System Interface (KCS, SMIC, or BT)";;
+		esac
+		echo -e " $Ch Channel Type is ${color_green}$CT. ${color_reset}"|tee -a App.log
+		case $k in $GCI3b4$GCI3b5$GCI3b6$GCI3b7$GCI3b8
+			'00001')CT="IPMB-1.0, Used for IPMB, serial/modem Basic Mode, and LAN";;
+			'00010')CT="ICMB v1.0";;
+			'00011')CT="Reserve";;
+			'00100')CT="IPMI-SMBus, IPMI on PCI-SMBus / SMBus 1.x - 2.x";;
+			'00101')CT="KCS, KCS System Interface Format";;
+			'00110')CT="SMIC, SMIC System Interface Format";;
+			'00111')CT="BT-10, BT System Interface Format";;
+			'01000')CT="BT-15, BT System Interface Format";;
+			'01001')CT="TMode, Terminal Mode";;
+		esac
+		echo -e " $Ch Channel protocol Type is${color_green} $CT. ${color_reset}"|tee -a App.log
+		
+		case $k in $GCI4b1$GCIb2
+			'00')echo -e " Channel $Ch is ${color_green}session-less. ${color_reset}"|tee -a App.log;;
+			'01')echo -e " Channel $Ch is ${color_green}single-session. ${color_reset}"|tee -a App.log;;
+			'10')echo -e " Channel $Ch is ${color_green}multi-session. ${color_reset}"|tee -a App.log;;
+			'11')echo -e " Channel $Ch is ${color_green}session-based. ${color_reset}"|tee -a App.log;;
+		esac
+			
+		echo -e " There's ${color_green}$((2#$GSI4b3$GSI4b4$GSI4b5$GSI4b6$GSI4b7$GSI4b8)) ${color_reset}of sessions that have been activated on channel $Ch."|tee -a App.log
+		echo -e " The Vendor ID (IANA Enterprise Number) for OEM/Organization that specified the Channel Protocol is ${color_green} $((16#$GCI7$GCI6$GCI5)). ${color_reset}"|tee -a App.log
+		echo -e " There's ${color_green}$((16#$GSI3)) ${color_reset}active sessions in SUT currently. "|tee -a App.log
+		echo -e " The UserID for this session is ${color_green}$((16#$GSI4)). ${color_reset}"|tee -a App.log
+		echo -e " Operating Privilege Level is ${color_green}0x$GSI5. ${color_reset}"|tee -a App.log
+		if [ $GSI6b4 -eq '1' ]
+			echo -e " The session is ${color_green}IPMI v2.0/RMCP+ protocol. ${color_reset}"|tee -a App.log
+			echo -e " The session is established via channel ${color_green}$((16#$GSI6b5$GSI6b6$GSI6b7$GSI6b8)). ${color_reset}"|tee -a App.log
+		fi
+fi
+echo -e "${color_blue} Get Channel Info Command finished ${color_reset}"|tee -a App.log
+echo ""|tee -a App.log

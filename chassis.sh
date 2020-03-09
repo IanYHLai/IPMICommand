@@ -328,10 +328,15 @@ if [ $? -eq '1' ] ; then
 	FailCounter=$(($FailCounter+1))
 else
 	$i 0x05 0x00 0x20 0x20 0x20 0x20 0x28 >> Chassis.log
-	echo -e "${color_blue} Set Chassis Capabilities Command finished${color_reset}"|tee -a Chassis.log
-	echo " Restore setting..."
-	$i 0x05 0x$R1 0x$R2 0x$R3 0x$R4 0x$R5 0x$R6 #Restore the cabilities
-	echo "Restore finished."
+	if [ "$($i 0x00)"=="00 20 20 20 20 28" ]
+		echo -e "${color_blue} Set Chassis Capabilities Command finished${color_reset}"|tee -a Chassis.log
+	else
+		echo -e "${color_red} Set Chassis Capabilities Command failed ${color_reset}"|tee -a Chassis.log
+		FailCounter=$(($FailCounter+1))
+	fi
+		echo " Restore setting..."
+		$i 0x05 0x$R1 0x$R2 0x$R3 0x$R4 0x$R5 0x$R6 #Restore the cabilities
+		echo "Restore finished."
 fi
 
 # raw 0x00 0x06

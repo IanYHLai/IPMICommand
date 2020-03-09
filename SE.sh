@@ -19,10 +19,25 @@ echo "$USER start S/E testing in $OSInfo "|tee -a SE.log
 
 i="ipmitool raw 0x04"
 sleep 1
+ipmitool sdr elist | awk '{ print $1 }' > SName.txt
+ipmitool sdr elist | awk '{ print $2 }' | cut -d 'h' -f 1 > SNum.txt
+while read line 
+	do 
+		ipmitool sdr get $line >> SDR.txt
+		#echo $line >> SType.txt
+		ipmitool sdr get $line |grep -i Type|awk -F\: '{print $2}' | awk -F "(" {'print $2'} | cut -d ')' -f 1 >> SType.txt
+		ipmitool sdr get $line |grep -i Type|awk -F\: '{print $2}' | awk -F "(" {'print $2'} | cut -d ')' -f 1 >> ForTest.txt
+		ipmitool sdr elist | awk '{ print $2 }' | cut -d 'h' -f 1 >> ForTest.txt
+		read temp <<< $(ipmitool sdr get $line| grep -i "sensor id"|awk -F'(' '{ print $2 }' | cut -d ')' -f 1)
+		ipmitool raw 0x04 0x2f 0x$temp|awk -F' ' '{print $2}' >> ForTest.txt
+		ipmitool raw 0x04 0x2f 0x$temp|awk -F' ' '{print $2}' >> EType.txt
+		echo "" >> ForTest.txt
+	done < SName.txt
+
 read -p "Please input BMC channel number(with 0xFF format) :" Ch
-read -p "Please input sensor name for testing(with no quotes like CPU_CUPS) :" SN 
-read -p "Please input sensor type of $SN(with 0xFF format) :" ST
-read -p "Please input event type of $SN(with 0xFF format) :" ET
+#read -p "Please input sensor name for testing(with no quotes like CPU_CUPS) :" SN 
+#read -p "Please input sensor type of $SN(with 0xFF format) :" ST
+#read -p "Please input event type of $SN(with 0xFF format) :" ET
 read -p "Please input alert destination IPaddr(IPv4 like 127.0.0.1) :" CliIP
 read -p "Please input alert destination MACaddr(with '-' format like 01-02-03-04-05-06) :" CliMAC
 # Split the ipaddr to several variable
@@ -49,10 +64,10 @@ CliIP="0x$ip1 0x$ip2 0x$ip3 0x$ip4"
 IFS=- read mac1 mac2 mac3 mac4 mac5 mac6 <<< "$CliMAC"
 CliMAC="0x$mac1 0x$mac2 0x$mac3 0x$mac4 0x$mac5 0x$mac6"
 
-SID=0x$(ipmitool sdr elist | grep -i "$SN" | awk -F\| '{print$2}' | cut -c 2-3) #with SN (sensor name) to search the sdr elist then cut the sensor ID to perform like 0xXX and save into $SID.
+#SID=0x$(ipmitool sdr elist | grep -i "$SN" | awk -F\| '{print$2}' | cut -c 2-3) #with SN (sensor name) to search the sdr elist then cut the sensor ID to perform like 0xXX and save into $SID.
 
 FailCounter=0
-echo "channel=$Ch SensorName=$SN SensorID=$SID SensorType=$ST EventType=$ET Client ip=$CliIP Client Mac=$CliMAC"|tee -a SE.log
+echo "BMC Channel=$Ch Client ip=$CliIP Client Mac=$CliMAC"|tee -a SE.log
 
 ## Start the test
 # raw 0x04 0x00
@@ -100,19 +115,19 @@ else
 fi
 
 # raw 0x04 0x02 This command need to check the sensor name , ID, type, event data suggest that manual testing for high testing quality
-echo ""|tee -a SE.log
-echo " Platform Event Message Command" |tee -a  SE.log
-echo " Response below :" |tee -a  SE.log
-$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00
-if [ ! $? -eq '0' ] ; then
-	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
-	echo -e " ${color_red}Platform Event Message Command failed${color_reset}" |tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
-	echo -e " ${color_blue}Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please...${color_reset}" |tee -a  SE.log
-	ipmitool -v sel elist |tee -a SE.log
-fi
+#echo ""|tee -a SE.log
+#echo " Platform Event Message Command" |tee -a  SE.log
+#echo " Response below :" |tee -a  SE.log
+#$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00
+#if [ ! $? -eq '0' ] ; then
+#	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
+#	echo -e " ${color_red}Platform Event Message Command failed${color_reset}" |tee -a SE.log
+#	FailCounter=$(($FailCounter+1))
+#else
+#	$i 0x02 0x20 0x04 $ST $SID $ET 0x00 0x00 0x00 >> SE.log
+#	echo -e " ${color_blue}Platform Event Message Command finished, check whether the SEL log is consisstent with sensor name and event data please...${color_reset}" |tee -a  SE.log
+#	ipmitool -v sel elist |tee -a SE.log
+#fi
 
 # raw 0x04 0x10
 echo ""|tee -a SE.log
@@ -353,152 +368,165 @@ echo ""|tee -a SE.log
 # raw 0x04 0x23
 echo " Get Sensor Reading Factors Command"|tee -a SE.log
 echo " Response below :" |tee -a SE.log
-$i 0x23 $SID 0xff
-if [ ! $? == 0 ] ; then
-	$i 0x23 $SID 0xff >> SE.log
-	echo -e "${color_red} Get Sensor $SID Reading Factors Command failed ${color_reset}"|tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x23 $SID 0xff >> SE.log
-	read SRF1 SRF2 SRF3 SRF4 SRF5 SRF6 SRF7 <<< $($i 0x23 $SID 0xff)
-	for j in SRF{1..7}; do
-		eval temp=\$$j
-		temp=${D2B[$((16#$temp))]}
-		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
-	done
-	read SRR null <<< $($i 0x2d $SID)
-	echo " Linear formula : y = L [ (M * x + (B * 10^K1)) * 10^K2 ] units"|tee -a SE.log
-	echo " Tolerance formula : y = L[Mx/2 * 10K2 ] units"|tee -a SE.log
-	echo -e " Next reading is ${color_green}$SRF1${color_reset}, indicates the next reading for which a different set of sensor reading factors is defined"|tee -a SE.log
-	echo -e " Parameter 'x' = ${color_green}$((16#$SRR))${color_reset}"|tee -a SE.log
-	echo -e " Parameter 'M' = ${color_green}$((2#$SRF3b1$SRF3b2$SRF2b1$SRF2b2$SRF2b3$SRF2b4$SRF2b5$SRF2b6$SRF2b7$SRF2b8))${color_reset}"|tee -a SE.log
-	echo -e " Parameter 'B' = ${color_green}$((2#$SRF5b1$SRF5b2$SRF4b1$SRF4b2$SRF4b3$SRF4b4$SRF4b5$SRF4b6$SRF4b7$SRF4b8))${color_reset}"|tee -a SE.log
-	K1=$((2#$SRF7b5$SRF7b6$SRF7b7$SRF7b8))
-	K2=$((2#$SRF7b1$SRF7b2$SRF7b3$SRF7b4))
-	[ "$K2" -gt 127 ] && ((K2=$K2-256)); echo -e " Parameter 'K2' = ${color_green}$K2${color_reset}"|tee -a SE.log
-	[ "$K1" -gt 127 ] && ((K1=$K1-256)); echo -e " Parameter 'K1' = ${color_green}$K1${color_reset}"|tee -a SE.log
-	echo -e " Tolerance in +/- ½raw counts is ${color_green}$((2#$SRF3b3$SRF3b4$SRF3b5$SRF3b6$SRF3b7SRF3b8))${color_reset}"|tee -a SE.log
-	echo -e " Basic Sensor Accuracy in 1/100 percent is ${color_green}$((2#$SRF6b1$SRF6b2$SRF6b3$SRF6b4$SRF5b3$SRF5b4$SRF5b5$SRF5b6$SRF5b7$SRF5b8))${color_reset}" 
-	echo -e " ${color_blue}Get Sensor $SID Reading Factors Command finished ${color_reset}"|tee -a SE.log	
-fi
-
+while read SID 
+	do
+		$i 0x23 0x$SID 0xff
+		if [ ! $? == 0 ] ; then
+		$i 0x23 0x$SID 0xff >> SE.log
+		echo -e "${color_red} Get Sensor $SID Reading Factors Command failed ${color_reset}"|tee -a SE.log
+		FailCounter=$(($FailCounter+1))
+		else
+		$i 0x23 0x$SID 0xff >> SE.log
+		read SRF1 SRF2 SRF3 SRF4 SRF5 SRF6 SRF7 <<< $($i 0x23 $SID 0xff)
+		for j in SRF{1..7}; do
+			eval temp=\$$j
+			temp=${D2B[$((16#$temp))]}
+			read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+		done
+		read SRR null <<< $($i 0x2d $SID)
+		echo " Linear formula : y = L [ (M * x + (B * 10^K1)) * 10^K2 ] units"|tee -a SE.log
+		echo " Tolerance formula : y = L[Mx/2 * 10K2 ] units"|tee -a SE.log
+		echo -e " Next reading is ${color_green}$SRF1${color_reset}, indicates the next reading for which a different set of sensor reading factors is defined"|tee -a SE.log
+		echo -e " Parameter 'x' = ${color_green}$((16#$SRR))${color_reset}"|tee -a SE.log
+		echo -e " Parameter 'M' = ${color_green}$((2#$SRF3b1$SRF3b2$SRF2b1$SRF2b2$SRF2b3$SRF2b4$SRF2b5$SRF2b6$SRF2b7$SRF2b8))${color_reset}"|tee -a SE.log
+		echo -e " Parameter 'B' = ${color_green}$((2#$SRF5b1$SRF5b2$SRF4b1$SRF4b2$SRF4b3$SRF4b4$SRF4b5$SRF4b6$SRF4b7$SRF4b8))${color_reset}"|tee -a SE.log
+		K1=$((2#$SRF7b5$SRF7b6$SRF7b7$SRF7b8))
+		K2=$((2#$SRF7b1$SRF7b2$SRF7b3$SRF7b4))
+		[ "$K2" -gt 127 ] && ((K2=$K2-256)); echo -e " Parameter 'K2' = ${color_green}$K2${color_reset}"|tee -a SE.log
+		[ "$K1" -gt 127 ] && ((K1=$K1-256)); echo -e " Parameter 'K1' = ${color_green}$K1${color_reset}"|tee -a SE.log
+		echo -e " Tolerance in +/- ½raw counts is ${color_green}$((2#$SRF3b3$SRF3b4$SRF3b5$SRF3b6$SRF3b7SRF3b8))${color_reset}"|tee -a SE.log
+		echo -e " Basic Sensor Accuracy in 1/100 percent is ${color_green}$((2#$SRF6b1$SRF6b2$SRF6b3$SRF6b4$SRF5b3$SRF5b4$SRF5b5$SRF5b6$SRF5b7$SRF5b8))${color_reset}" 
+		echo -e " ${color_blue}Get Sensor $SID Reading Factors Command finished ${color_reset}"|tee -a SE.log	
+	fi
+done < SNum.txt
 echo ""|tee -a SE.log
 
 # raw 0x04 0x24
 echo " Set Sensor Hysteresis Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
-read resH1 resH2 <<< $($i 0x25 $SID 0xff)
-echo $resH1 $resH2
-$i 0x24 $SID 0xff 0x00 0x00 
-if [ ! $? -eq '0' ] ; then
-	$i 0x24 $SID 0xff 0x00 0x00 >> SE.log
-	echo -e "${color_red} Set Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x24 $SID 0xff 0x00 0x00 >> SE.log
-	echo -e "${color_blue} Set Sensor Hysteresis Command finished ${color_reset}"|tee -a SE.log
-	echo " Restore default setting...."
-	$i 0x24 $SID 0xff 0x$resH1 0x$resH2 
-	echo " Restore setting fnished...."
-fi
-
+while read SID
+	do
+		read resH1 resH2 <<< $($i 0x25 $SID 0xff)
+		echo $resH1 $resH2
+		$i 0x24 0x$SID 0xff 0x00 0x00 
+		if [ ! $? -eq '0' ] ; then
+			$i 0x24 0x$SID 0xff 0x00 0x00 >> SE.log
+			echo -e "${color_red} Set Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
+			FailCounter=$(($FailCounter+1))
+		else
+			$i 0x24 0x$SID 0xff 0x00 0x00 >> SE.log
+			echo -e "${color_blue} Set Sensor Hysteresis Command finished ${color_reset}"|tee -a SE.log
+			echo " Restore default setting...."
+			$i 0x24 0x$SID 0xff 0x$resH1 0x$resH2 
+			echo " Restore setting fnished...."
+		fi
+	done < SNum.txt
 echo ""|tee -a SE.log
 
 # raw 0x04 0x25
 echo " Get Sensor Hysteresis Command"|tee -a  SE.log
 echo " Response below :" |tee -a SE.log
-$i 0x25 $SID 0xff
-if [ ! $?==0 ] ; then
-	$i 0x25 $SID 0xff >> SE.log
-	echo -e "${color_red} Get Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x25 $SID 0xff >> SE.log
-	read GS1 GS2 <<< $($i 0x25 $SID 0xff)
-	for j in GS{1..2}; do
-		eval temp=\$$j
-		temp=${D2B[$((16#$temp))]}
-		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
-	done
-	if [ ! $GS1 -eq '0' ];then
-		echo -e " Positive-going Threshold Hysteresis = ${color_green}$GS1${color_reset}"|tee -a SE.log
-	else
-		echo " Positive-going Threshold Hysteresis is N/A"|tee -a SE.log
-	fi
-	if [ ! $GS2 -eq '0' ];then
-		echo -e " Negative-going Threshold Hysteresis = ${color_green}$GS2${color_reset}"|tee -a SE.log
-	else
-		echo " Negative-going Threshold Hysteresis is N/A"|tee -a SE.log
-	fi
-	echo -e "${color_blue} Get Sensor Hysteresis Command finished${color_reset}"|tee -a SE.log
-fi
+while read SID
+	do
+		$i 0x25 $SID 0xff
+		if [ ! $?==0 ] ; then
+			$i 0x25 $SID 0xff >> SE.log
+			echo -e "${color_red} Get Sensor Hysteresis Command failed ${color_reset}"|tee -a SE.log
+			FailCounter=$(($FailCounter+1))
+		else
+			$i 0x25 $SID 0xff >> SE.log
+			read GS1 GS2 <<< $($i 0x25 $SID 0xff)
+			for j in GS{1..2}; do
+				eval temp=\$$j
+				temp=${D2B[$((16#$temp))]}
+				read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+			done
+			if [ ! $GS1 -eq '0' ];then
+				echo -e " Positive-going Threshold Hysteresis = ${color_green}$GS1${color_reset}"|tee -a SE.log
+			else
+				echo " Positive-going Threshold Hysteresis is N/A"|tee -a SE.log
+			fi
+			if [ ! $GS2 -eq '0' ];then
+				echo -e " Negative-going Threshold Hysteresis = ${color_green}$GS2${color_reset}"|tee -a SE.log
+			else
+				echo " Negative-going Threshold Hysteresis is N/A"|tee -a SE.log
+			fi
+			echo -e "${color_blue} Get Sensor Hysteresis Command finished${color_reset}"|tee -a SE.log
+		fi
+	done < SNum.txt
 echo ""|tee -a SE.log
 
 # raw 0x04 0x27
 echo " Get Sensor Thresholds Command " | tee -a SE.log
 echo " Response below :" | tee -a SE.log
-$i 0x27 $SID 
-if [ ! $? -eq '0' ] ; then
-	$i 0x27 $SID >> SE.log
-	echo -e "${color_red} Get Sensor Thresholds Command failed ${color_reset}" | tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x27 $SID >> SE.log
-	read GT1 GT2 GT3 GT4 GT5 GT6 GT7<<< $($i 0x27 $SID)
-	for j in GT{1..7}; do
-		eval temp=\$$j
-		temp=${D2B[$((16#$temp))]}
-		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
-	done
-	echo -e " ${color+green}$SN${color_reset} Readable threshold : "|tee -a SE.log
-	if [ $GT1b3 -eq '1' ];then
-		echo -e " Upper non-recoverable threshold = ${color_green}$((16#$GT7))${color_reset}(dec)"|tee -a SE.log
-	fi
-	if [ $GT1b4 -eq '1' ];then
-		echo -e " upper critical threshold = ${color_green}$((16#$GT6))${color_reset}(dec)"|tee -a SE.log
-	fi
-	if [ $GT1b5 -eq '1' ];then
-		echo -e " upper non-critical threshold = ${color_green}$((16#$GT5))${color_reset}(dec)"|tee -a SE.log
-	fi
-	if [ $GT1b6 -eq '1' ];then
-		echo -e " lower non-recoverable threshold = ${color_green}$((16#$GT4))${color_reset}(dec)"|tee -a SE.log
-	fi
-	if [ $GT1b7 -eq '1' ];then
-		echo -e " lower critical threshold = ${color_green}$((16#$GT3))${color_reset}(dec)"|tee -a SE.log
-	fi
-	if [ $GT1b8 -eq '1' ];then
-		echo -e " lower non-critical threshold = ${color_green}$((16#$GT2))${color_reset}(dec)"|tee -a SE.log
-	fi
-	echo " "|tee -a SE.log
-	echo -e "${color_blue} Get Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
-fi
+while read SID
+	do
+		$i 0x27 $SID 
+		if [ ! $? -eq '0' ] ; then
+			$i 0x27 $SID >> SE.log
+			echo -e "${color_red} Get Sensor Thresholds Command failed ${color_reset}" | tee -a SE.log
+			FailCounter=$(($FailCounter+1))
+		else
+			$i 0x27 $SID >> SE.log
+			read GT1 GT2 GT3 GT4 GT5 GT6 GT7<<< $($i 0x27 $SID)
+			for j in GT{1..7}; do
+				eval temp=\$$j
+				temp=${D2B[$((16#$temp))]}
+				read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
+			done
+			echo -e " ${color+green}$SN${color_reset} Readable threshold : "|tee -a SE.log
+			if [ $GT1b3 -eq '1' ];then
+				echo -e " Upper non-recoverable threshold = ${color_green}$((16#$GT7))${color_reset}(dec)"|tee -a SE.log
+			fi
+			if [ $GT1b4 -eq '1' ];then
+				echo -e " upper critical threshold = ${color_green}$((16#$GT6))${color_reset}(dec)"|tee -a SE.log
+			fi
+			if [ $GT1b5 -eq '1' ];then
+				echo -e " upper non-critical threshold = ${color_green}$((16#$GT5))${color_reset}(dec)"|tee -a SE.log
+			fi
+			if [ $GT1b6 -eq '1' ];then
+				echo -e " lower non-recoverable threshold = ${color_green}$((16#$GT4))${color_reset}(dec)"|tee -a SE.log
+			fi
+			if [ $GT1b7 -eq '1' ];then
+				echo -e " lower critical threshold = ${color_green}$((16#$GT3))${color_reset}(dec)"|tee -a SE.log
+			fi
+			if [ $GT1b8 -eq '1' ];then
+				echo -e " lower non-critical threshold = ${color_green}$((16#$GT2))${color_reset}(dec)"|tee -a SE.log
+			fi
+			echo " "|tee -a SE.log
+			echo -e "${color_blue} Get Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
+		fi
+	done < SNum.txt
 echo ""|tee -a SE.log
 
 # raw 0x04 0x26
 echo " Set Sensor Thresholds Command" |tee -a SE.log
 echo " Response below :" |tee -a SE.log
-read LNC <<< $(printf %x $(((16#$GT2)+1)))
-read LCR <<< $(printf %x $(((16#$GT3)+1)))
-read LNR <<< $(printf %x $(((16#$GT4)+1)))
-read UNC <<< $(printf %x $(((16#$GT5)+1)))
-read UCR <<< $(printf %x $(((16#$GT6)+1)))
-read UNR <<< $(printf %x $(((16#$GT7)+1)))
-$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR
-if [ ! $?==0 ] ; then
-	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
-	echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
-	FailCounter=$(($FailCounter+1))
-else
-	$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
-	echo " Please check the response manually..."|tee -a SE.log
-	echo -e " ${color_green}$UNR $UCR $UNC $LNR $LCR $LNC${color_reset} check the vaule if support"|tee -a SE.log
-	echo -e " ${color_green}$GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8${color_reset} mask the threshold with '1' support."|tee -a SE.log
-	ipmitool raw 0x04 0x27 $SID |tee -a SE.log
-	echo -e " ${color_blue}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
-	echo " Restore default threshold..."
-	$i 0x26 $SID 0x$GT1 0x$GT2 0x$GT3 0x$GT4 0x$GT5 0x$GT6 0x$GT7
-	echo " Restore finished..."
-fi
+while read SID
+	do
+		read LNC <<< $(printf %x $(((16#$GT2)+1)))
+		read LCR <<< $(printf %x $(((16#$GT3)+1)))
+		read LNR <<< $(printf %x $(((16#$GT4)+1)))
+		read UNC <<< $(printf %x $(((16#$GT5)+1)))
+		read UCR <<< $(printf %x $(((16#$GT6)+1)))
+		read UNR <<< $(printf %x $(((16#$GT7)+1)))
+		$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR
+		if [ ! $?==0 ] ; then
+			$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
+			echo -e "${color_red} Set Sensor Thresholds Command failed${color_reset}" |tee -a SE.log
+			FailCounter=$(($FailCounter+1))
+		else
+			$i 0x26 $SID 0x$GT1 0x$LNC 0x$LCR 0x$LNR 0x$UNC 0x$UCR 0x$UNR >> SE.log
+			echo " Please check the response manually..."|tee -a SE.log
+			echo -e " ${color_green}$UNR $UCR $UNC $LNR $LCR $LNC${color_reset} check the vaule if support"|tee -a SE.log
+			echo -e " ${color_green}$GT1b3 $GT1b4 $GT1b5 $GT1b6 $GT1b7 $GT1b8${color_reset} mask the threshold with '1' support."|tee -a SE.log
+			ipmitool raw 0x04 0x27 $SID |tee -a SE.log
+			echo -e " ${color_blue}Set Sensor Thresholds Command finished${color_reset}"|tee -a SE.log
+			echo " Restore default threshold..."
+			$i 0x26 $SID 0x$GT1 0x$GT2 0x$GT3 0x$GT4 0x$GT5 0x$GT6 0x$GT7
+			echo " Restore finished..."
+		fi
+	done < SNum.txt
 echo ""|tee -a SE.log
 
 # raw 0x04 0x28 

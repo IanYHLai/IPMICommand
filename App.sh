@@ -1,16 +1,17 @@
 #!/bin/bash
 
 echo -e "${color_red}Remove and backup the previous log as date format...${color_reset}"
+read -t 10 -p "Wait for 10 seconds to clear..."
 if [ -f "App.log" ]; then
 	cp App.log $(date +%Y%m%d_%T)_App.log && rm -f App.log
 fi
 
 date|tee -a App.log
-read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
+read OSInfo <<< $(cat /etc/redhat-release)
 echo "$USER start testing in $OSInfo..."|tee -a App.sh.log
 
-read -p "Enter the BMC channel with 0XFF format: " Ch
-
+#read -p "Enter the BMC channel with 0XFF format: " Ch
+Ch="$ipmi 0x06 0x42 0x0e|cut -d " " -f 2"
 i="ipmitool raw 0x06"
 sleep 1
 color_reset='\e[0m'
@@ -43,6 +44,38 @@ function H2B () {
         echo $L1$L2$L3$L4$R1$R2$R3$R4                                                          
 }
 
+#Watchdog
+
+echo -e " ${color_convert} Set Watchdog timer Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+echo " Test BIOS FRB2, BIOS/POST, 011b = OS Load, 100b = SMS/OS timer" |tee -a App.log
+for j in {1..4};do
+	for k in 10 20 30;
+		$i 0x24 0x0$j 0x$k 0x01 0x3e 0x01 0x00
+		if [ ! $? -eq '0' ] ; then
+			$i 0x24 0x0$j 0x$k 0x01 0x3e 0x01 0x00 >> App.log
+			echo "timer use : $j, pre-timeout interrupt : $k"|tee -a App.log
+			echo -e "${color_red} Set Watchdog timer Command failed ${color_reset}"|tee -a App.log
+			FailCounter=$(($FailCounter+1))
+			Fail24=1
+		else
+			echo "Reset Watchdog timer.."|tee -a App.log
+			$i 0x22 
+			sleep 3 
+			if [ -n "$($i sel elist |grep -i watchdog)" ];then
+				echo -e "${color_blue} Set & Reset Watchdog Command finished.${color_reset}"|tee -a App.log
+				$i sel clear
+			else
+				echo "timer use : $j, pre-timeout interrupt : $k"|tee -a App.log
+				echo -e "${color_red} Watchdog timer doesn't log ${color_reset}"|tee -a App.log
+				FailCounter=$(($FailCounter+1))
+				Fail24=1
+			fi
+		fi
+	done
+done
+echo ""|tee -a App.log
+
 # raw 0x06 0x01
 echo ""|tee -a App.log
 echo -e " ${color_convert}Get Device ID${color_reset} " |tee -a  App.log
@@ -52,6 +85,7 @@ if [ ! $? -eq '0' ] ; then
 	$i 0x01 >> App.log
 	echo -e "${color_red} Get Device ID failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail1=1
 else
 	$i 0x01 >> App.log
 	echo =====================Device ID info======================== |tee -a App.log
@@ -130,23 +164,24 @@ else
 fi
 echo ""|tee -a App.log
 # raw 0x06 0x02 
-#echo -e " ${color_convert}BMC Cold Rest ${color_reset}" |tee -a  App.log
-#echo " Response below :" |tee -a App.log
-#$i 0x02
-#if [ ! $? -eq '0' ] ; then
-#	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
-#	FailCounter=$(($FailCounter+1))
-#else
-#	echo " BMC Cold Restting... Wait for BMC initializing..."
-#	sleep 90
-#	CRC=0
-#	while [ ! "$($i 0x01)" ] && [ $CRC -le 35 ]
-#	do
-#		sleep 5
-#		let CRC=$CRC+1
-#	done
-#	echo -e "${color_blue} BMC Cold Rest finished.${color_reset}"|tee -a App.log
-#fi
+echo -e " ${color_convert}BMC Cold Rest ${color_reset}" |tee -a  App.log
+echo " Response below :" |tee -a App.log
+$i 0x02
+if [ ! $? -eq '0' ] ; then
+	echo -e "${color_red} BMC Cold Reset failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+	Fail2=1
+else
+	echo " BMC Cold Restting... Wait for BMC initializing..."
+	sleep 180
+	CRC=0
+	while [ ! "$($i 0x01)" ] && [ $CRC -le 35 ]
+	do
+		sleep 5
+		let CRC=$CRC+1
+	done
+	echo -e "${color_blue} BMC Cold Rest finished.${color_reset}"|tee -a App.log
+fi
 echo ""|tee -a App.log
 # raw 0x06 0x03
 #echo -e " ${color_convert}BMC Warm Rest${color_reset} " |tee -a  App.log
@@ -175,6 +210,7 @@ if [ ! $? -eq '0' ] ; then
 	$i 0x04 >> App.log
 	echo -e "${color_red} BMC Self Test failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail4=1
 else
 	$i 0x04 >> App.log
 	read BST1 BST2 <<< $($i 0x04)
@@ -236,6 +272,7 @@ $i 0x05
 if [ ! $? -eq '0' ] ; then
 	echo -e "${color_red} Manufacturing Test On failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail5=1
 else
 	echo -e "${color_blue} Manufacturing Test On finished.${color_reset}"|tee -a App.log
 fi
@@ -256,6 +293,7 @@ do
 			echo -e "${color_red} Set ACPI Power State 0x$j 0x$k failed ${color_reset}"|tee -a App.log
 			ACPIFailCounter=$(($ACPIFailCounter+1))
 			FailCounter=$(($FailCounter+1))
+			Fail6=1
 		fi
 	done
 done
@@ -273,6 +311,7 @@ if [ ! $? -eq '0' ] ; then
 	$i 0x07 >> App.log
 	echo -e "${color_red} Get ACPI Power State Command failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail7=1
 else
 	if [ "$i 0x07"=="00 00" ];then
 		$i 0x07 >> App.log
@@ -289,6 +328,7 @@ if [ ! $? -eq '0' ] ; then
 	$i 0x08 >> App.log
 	echo -e "${color_red} Get Device GUID Command failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail8=1
 else
 	echo -e "${color_blue} Get Device GUID Command finished.${color_reset}"|tee -a App.log
 fi
@@ -297,13 +337,14 @@ echo ""|tee -a App.log
 # raw 0x06 0x09
 echo -e " ${color_convert} Get NetFn Support Command${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
-$i 0x09 $Ch
+$i 0x09 0x$Ch
 if [ ! $? -eq '0' ] ; then
-	$i 0x09 $Ch >> App.log
+	$i 0x09 0x$Ch >> App.log
 	echo -e "${color_red} Get NetFn Support in channel $Ch Command failed ${color_reset}"|tee -a App.log
 	FailCounter=$(($FailCounter+1))
+	Fail9=1
 else
-	$i 0x09 $Ch >> App.log
+	$i 0x09 0x$Ch >> App.log
 	read GNS1 GNS2 GNS3 GNS4 GNS5 GNS6 GNS7 GNS8 GNS9 GNS10 GNS11 GNS12 GNS13 GNS14 GNS15 GNS16 GNS17 <<< $($i 0x09 $Ch)
 	for j in GNS{1..17}; do
 		eval temp=\$$j
@@ -398,7 +439,7 @@ else
 		echo -e " ${color_green} NetFn pairs$NetFnLUN3 is used for LUN 11b${color_reset}"|tee -a App.log
 		echo ""|tee -a App.log
 	fi
-	echo -e "${color_blue} Get NetFn Support in channel $Ch Command finished.${color_reset}"|tee -a App.log
+	echo -e "${color_blue} Get NetFn Support in channel 0x$Ch Command finished.${color_reset}"|tee -a App.log
 fi
 
 echo ""|tee -a App.log
@@ -575,29 +616,8 @@ echo ""|tee -a App.log
 #done
 echo ""|tee -a App.log
 
-#Watchdog
 
-echo -e " ${color_convert} Set Watchdog timer Command${color_reset} " |tee -a  App.log
-echo " Response below :" |tee -a App.log
-echo " Test BIOS FRB2, BIOS/POST, 011b = OS Load, 100b = SMS/OS timer" |tee -a App.log
-for i in {1..4};do
-	for j in 10 20 30;
-		$i 0x24 0x0$i 0x$j 0x01 0x3e 0x10 0x10
-		if [ ! $? -eq '0' ] ; then
-			$i 0x24 0x0$i 0x$j 0x01 0x3e 0x10 0x10 >> App.log
-			echo "timer use : $i, pre-timeout interrupt : $j"|tee -a App.log
-			echo -e "${color_red} Set Watchdog timer Command failed ${color_reset}"|tee -a App.log
-			FailCounter=$(($FailCounter+1))
-		else
-			echo "Reset Watchdog timer.."|tee -a App.log
-			$i 0x22 
-			sleep 3 
-			$i sel elist |grep -i watchdog |tee -a App.log
-			echo -e "${color_blue} Set & Reset Watchdog Command finished.${color_reset}"|tee -a App.log
-		fi
-	done
-done
-echo ""|tee -a App.log
+
 
 #Set BMC Global Enable
 echo -e " ${color_convert} Set BMC Global Enables Command to all enable ${color_reset} " |tee -a  App.log
@@ -607,11 +627,14 @@ if [ ! $? -eq '0' ] ; then
 			$i 0x2e 0x0f >> App.log
 			echo -e "${color_red} Set BMC Global Enables Command to all enable failed ${color_reset}"|tee -a App.log
 			FailCounter=$(($FailCounter+1))
+			Failf=1
 		else
 			if [ "$($i 0x2f)"=="0f"]; then
 				echo -e "${color_green} Set BMC Global Enables Command to all enable success ${color_reset}"|tee -a App.log
 			else
 				echo -e "${color_red} Set BMC Global Enables Command to all enable fail that response not correct ${color_reset}"|tee -a App.log
+				FailCounter=$(($FailCounter+1))
+				Failf=1	
 			fi
 fi
 echo -e "${color_blue} Set BMC Global all Enable Command finished.${color_reset}"|tee -a App.log
@@ -625,11 +648,14 @@ if [ ! $? -eq '0' ] ; then
 			$i 0x2e 0x30 0x0b >> App.log
 			echo -e "${color_red} Clear Message Flags Command failed ${color_reset}"|tee -a App.log
 			FailCounter=$(($FailCounter+1))
+			Fail30=1
 		else
 			if [ "$($i 0x31)"=="0b"]; then
 				echo -e "${color_green} Clear Message Flags Command success ${color_reset}"|tee -a App.log
 			else
 				echo -e "${color_red} Clear Message Flags Command fail that response not correct ${color_reset}"|tee -a App.log
+				FailCounter=$(($FailCounter+1))
+				Fail30=1
 			fi
 fi
 echo -e "${color_blue} Clear Message Flags Command finished.${color_reset}"|tee -a App.log
@@ -638,16 +664,17 @@ echo ""|tee -a App.log
 #Enable Message Channel Receive Command
 echo -e " ${color_convert} Enable Message Channel Receive Command ${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
-$i 0x2e 0x32 $Ch 0x10
+$i 0x2e 0x32 0x$Ch 0x10
 if [ ! $? -eq '0' ] ; then
 			$i 0x2e 0x32 0x10 >> App.log
 			echo -e "${color_red} Enable Message Channel Receive Command failed ${color_reset}"|tee -a App.log
 			FailCounter=$(($FailCounter+1))
+			Fail32=1
 		else
-			if [ "$($i 0x32 $Ch 0x10)"=="${Ch:3:4} 01"]; then
-				echo -e "${color_green} Channel $Ch is enable to Receive Message${color_reset}"|tee -a App.log
+			if [ "$($i 0x32 $Ch 0x10)"=="$Ch 01"]; then
+				echo -e "${color_green} Channel 0x$Ch is enable to Receive Message${color_reset}"|tee -a App.log
 			else
-				if [ "$($i 0x32 $Ch 0x10)"=="${Ch:3:4} 00"]; then
+				if [ "$($i 0x32 $Ch 0x10)"=="$Ch 00"]; then
 				echo -e "${color_red} Channel $Ch is disable to Receive Message ${color_reset}"|tee -a App.log
 			fi
 fi
@@ -662,11 +689,14 @@ if [ ! $? -eq '0' ] ; then
 			$i 0x34 0x0f 0x01 >> App.log
 			echo -e "${color_red} Send & Get messages Command failed ${color_reset}"|tee -a App.log
 			FailCounter=$(($FailCounter+1))
+			Fail34=1
 		else
 			if [ "$($i 0x33)"=="0f 01"]; then
 				echo -e "${color_green} Send & Get messages success ${color_reset}"|tee -a App.log
 			else
 				echo -e "${color_red} Send & Get messages Command fail that response not correct ${color_reset}"|tee -a App.log
+				FailCounter=$(($FailCounter+1))
+				Fail34=1
 			fi
 fi
 echo -e "${color_blue} Send & Get messages command finished.${color_reset}"|tee -a App.log
@@ -681,6 +711,7 @@ if [ ! $? -eq '0' ] ; then
 		$i 0x35 >> App.log
 		echo -e "${color_red} Read Event Message Buffer Command failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail35=1
 	else
 		$i 0x35 |tee -a App.log
 		echo -e "${color_green} Read Event Message Buffer Command success ${color_reset}"|tee -a App.log
@@ -696,6 +727,7 @@ if [ ! $? -eq '0' ] ; then
 		$i 0x36 >> App.log
 		echo -e "${color_red} Get BT Interface Capabilities Command failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail36=1
 	else
 		read GBI1 GBI2 GBI3 GBI4 GBI5 <<< $($i 0x36)
 		for j in GBI{1..5}; do
@@ -721,6 +753,7 @@ if [ ! $? -eq '0' ] ; then
 		$i 0x37 >> App.log
 		echo -e "${color_red} Get Device GUID Command failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail37=1
 	else
 		$i 0x37 |tee -a App.log
 		echo -e "${color_green} Get Device GUID Command success ${color_reset}"|tee -a App.log
@@ -744,6 +777,7 @@ for $j in {1..4}; do
 		$i 0x38 0x01 0x0$j >> App.log
 		echo -e "${color_red} Get Channel Authentication Capabilities Command failed with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail38=1
 	else
 		$i 0x38 0x01 0x0$j |tee -a App.log
 		for k in GCAC{1..8}; do
@@ -807,6 +841,7 @@ for $j in {1..4}; do
 		$i 0x38 0x81 0x0$j >> App.log
 		echo -e "${color_red} Get Channel Authentication Capabilities Command failed with Backward compatible with IPMI v1.5 in $Auth level${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail38=1
 	else
 		$i 0x38 0x81 0x0$j |tee -a App.log
 		for k in GCAC{1..8}; do
@@ -886,6 +921,7 @@ if [ ! $? -eq '0' ] ; then
 		$i 0x3d 0x00 >> App.log
 		echo -e "${color_red} Get session Information failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail3d=1
 	else
 		read GSI1 GSI2 GSI3 GSI4 GSI5 GSI6 <<< $($i 0x3d 0x00)
 		for j in GSI{1..6}; do
@@ -915,11 +951,12 @@ echo ""|tee -a App.log
 #Get Channel Info Command
 echo -e " ${color_convert} Get Channel Info Command command${color_reset} " |tee -a  App.log
 echo " Response below :" |tee -a App.log
-$i 0x42 $Ch
+$i 0x42 0x$Ch
 if [ ! $? -eq '0' ] ; then
-		$i 0x42 $Ch >> App.log
+		$i 0x42 0x$Ch >> App.log
 		echo -e "${color_red} Get Channel Info Command failed ${color_reset}"|tee -a App.log
 		FailCounter=$(($FailCounter+1))
+		Fail42=1
 	else
 		read GCI1 GCI2 GCI3 GCI4 GCI5 GCI6 GCI7 GCI8 GCI9 <<< $($i 0x42 0x00)
 		for j in GCI{1..9}; do
@@ -975,3 +1012,64 @@ if [ ! $? -eq '0' ] ; then
 fi
 echo -e "${color_blue} Get Channel Info Command finished ${color_reset}"|tee -a App.log
 echo ""|tee -a App.log
+
+#Set user name 
+echo -e " ${color_convert} Set user name Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+#Set a new user names "sit"
+$i 0x45 0x03 0x73 0x69 0x74 0 0 0 0 0 0 0 0 0 0 0 0 0
+if [ ! $? -eq '0' ] ; then
+	$i 0x45 0x03 0x73 0x69 0x74 0 0 0 0 0 0 0 0 0 0 0 0 0 >> App.log
+	echo -e "${color_red} Set user name command failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+	Fail45=1
+else
+	if [ -n "$($i user list $Ch|grep sit)" ];then
+		echo -e "${color_blue} Set user name Command finished ${color_reset}"|tee -a App.log
+	else
+		echo -e "${color_red} Set user name command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+		Fail45=1
+	fi
+fi
+
+#Get user name 
+echo -e " ${color_convert} Set user name Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+
+$i 0x46 0x03
+if [ ! $? -eq '0' ] ; then
+	$i 0x46 0x03 >> App.log
+	echo -e "${color_red} Get user name command failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+	Fail46=1
+else
+	if [ "$($i 0x46)"=="73 69 74 00 00 00 00 00 00 00 00 00 00 00 00 00" ];then
+		echo -e "${color_blue} Get user name Command finished ${color_reset}"|tee -a App.log
+	else
+		echo -e "${color_red} Get user name command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+		Fail46=1
+	fi
+fi
+
+echo -e " ${color_convert} Set user password Command${color_reset} " |tee -a  App.log
+echo " Response below :" |tee -a App.log
+
+$i 0x47 0x83 0x02 0x21 0x71 0x61 0x7a 0x32 0x77 0x73 0x58 0 0 0 0 0 0 0 0 0 0 0 0
+if [ ! $? -eq '0' ] ; then
+	$i 0x47 0x83 0x02 0x21 0x71 0x61 0x7a 0x32 0x77 0x73 0x58 0 0 0 0 0 0 0 0 0 0 0 0 >> App.log
+	echo -e "${color_red} Set user password command failed ${color_reset}"|tee -a App.log
+	FailCounter=$(($FailCounter+1))
+	Fail47=1
+else
+	$i 0x47 0x83 0x03 0x21 0x71 0x61 0x7a 0x32 0x77 0x73 0x58 0 0 0 0 0 0 0 0 0 0 0 0
+	if [ ! $? =eq 0 ];then
+		echo -e "${color_blue} Set user password Command finished ${color_reset}"|tee -a App.log
+	else
+		echo -e "${color_red} Set user password command failed ${color_reset}"|tee -a App.log
+		FailCounter=$(($FailCounter+1))
+		Fail47=1
+	fi
+fi
+

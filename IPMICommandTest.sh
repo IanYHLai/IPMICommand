@@ -21,6 +21,7 @@
 #																								  #
 ###################################################################################################
 echo "Backup the SEL and clear it..."
+read -t 10 -p "Wait for 10 seconds to clear..."
 ipmitool -v sel elist > $(date +%Y%m%d_%T)_SELBeforeTest
 ipmitool sel clear
 
@@ -43,7 +44,8 @@ echo -e "  ${color_green}For all function just type all.${color_reset}"
 echo  "  help or h or ? for script info"
 
 function Test_Fuction () {
-	read -p "Please select the Netfn use the space key to distinguash the multiple function : " Netfn
+	read -t 10 -p "Please select the Netfn use the space key to distinguash the multiple function(default : Chassis,App,S/E) : " Netfn
+	Netfn=$(Netfn:="0 4 6")
 	#Read Netfn in to upto 7 function being selected
 	read Fn1 Fn2 Fn3 Fn4 Fn5 Fn6 Fn7 <<< "$Netfn"
 	#Function array for check which function being selected

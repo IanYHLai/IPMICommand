@@ -1,4 +1,4 @@
-#!/bin/bash
+  #!/bin/bash
 
 echo -e "${color_red}Remove and backup the previous log as date format...${color_reset}"
 if [ -f "Chassis.log" ]; then
@@ -6,7 +6,7 @@ if [ -f "Chassis.log" ]; then
 fi
 
 date|tee -a Chassis.log
-read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
+read OSInfo <<< $(cat /etc/redhat-release)
 echo "$USER start testing in $OSInfo..."|tee -a Chassis.log
 
 echo ''
@@ -30,6 +30,7 @@ if [ $? -eq '1' ] ; then
 	$i 0x00 >> Chassis.log
 	echo -e "${color_red} Get Chassis Capabilities failed${color_reset}" |tee -a Chassis.log
 	FailCounter=$(($FailCounter+1))
+	Fail0=1
 else
 	$i 0x00 >> Chassis.log
 	read CC1 CC2 CC3 CC4 CC5 CC6 <<< $($i 0x00)
@@ -89,6 +90,7 @@ if [ $? -eq '1' ] ; then
 	$i 0x01 >>Chassis.log
 	echo -e "${color_red} Get Chassis Status failed${color_reset}"|tee -a Chassis.log
 	FailCounter=$(($FailCounter+1))
+	Fail1=1
 else
 	$i 0x01 >>Chassis.log
 	read CS1 CS2 CS3 CS4 <<< $($i 0x01)
@@ -326,6 +328,7 @@ if [ $? -eq '1' ] ; then
 	$i 0x05 0x00 0x20 0x20 0x20 0x20 0x28 >> Chassis.log
 	echo -e "${color_red} Set Chassis Capabilities Command failed ${color_reset}"|tee -a Chassis.log
 	FailCounter=$(($FailCounter+1))
+	Fail5=1
 else
 	$i 0x05 0x00 0x20 0x20 0x20 0x20 0x28 >> Chassis.log
 	if [ "$($i 0x00)"=="00 20 20 20 20 28" ]
@@ -467,7 +470,7 @@ if [ $? -eq '1' ] ; then
 	$i 0x0f |tee -a Chassis.log
 	echo -e "${color_red} Get POH Counter Command failed ${color_reset}"|tee -a Chassis.log
 	FailCounter=$(($FailCounter+1))
-	Faif=1
+	Failf=1
 else
 	$i 0x0f |tee -a Chassis.log
 	#Get POH response byte
@@ -478,7 +481,10 @@ else
 		read $j'b1' $j'b2' $j'b3' $j'b4' $j'b5' $j'b6' $j'b7' $j'b8' <<< "${temp:0:1} ${temp:1:1} ${temp:2:1} ${temp:3:1} ${temp:4:1} ${temp:5:1} ${temp:6:1} ${temp:7:1}"
 	done
 	#POH time
-	let POHCount=$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))/60/24)))"Days",$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))/60%24)))"Hours",$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))%60)))"minutes" #快寫到不知道在寫甚麼了...
+	let POHDay=$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))/60/24)))
+	let POHHour=$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))/60%24)))
+	let POHMin=$(((((16#$POH5$POH4$POH3$POH2)*$((16#$POH1)))%60)))
+	let POHCount="Days","Hours","minutes" #快寫到不知道在寫甚麼了...
 	echo -e " The POH counter per ${color_green}$((16#$POH1))${color_reset} minutes a count"|tee -a Chassis.log
 	echo -e " POH counter : ${color_green}$POHCount${color_reset}"|tee -a Chassis.log
 	echo -e "${color_blue} Get POH Counter Command finished${color_reset}"|tee -a Chassis.log
@@ -486,8 +492,17 @@ fi
 echo ""|tee -a Chassis.log
 
 if [ $FailCounter -eq '0' ]; then
-	echo -e "${color_blue} Chassis function test sucess.${color_reset}"|tee -a Chassis.log
+	echo -e "${color_blue} Chassis function test finished.${color_reset}"|tee -a Chassis.log
 else
 	echo -e "${color_red} Chassis function test finished but has some command failed check the Chassis.log please.${color_reset}"| tee -a Chassis.log
+	echo "Fail command below :"|tee -a Chassis.log
+	for i in {0,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f};
+	do
+		temp=fail$i
+		eval temp=\$$temp
+		if [ $temp -eq 1 ];then
+			echo "0x00 0x$i"|tee -a Chassis.log
+		fi
+	done
 fi
 

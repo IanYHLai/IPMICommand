@@ -22,7 +22,7 @@
 ###################################################################################################
 echo "Backup the SEL and clear it..."
 read -t 10 -p "Wait for 10 seconds to clear..."
-ipmitool -v sel elist > $(date +%Y%m%d_%T)_SELBeforeTest
+ipmitool -v sel elist > SELBeforeIPMITest
 ipmitool sel clear
 
 color_reset='\e[0m'
@@ -43,9 +43,23 @@ echo -e "  c = transport function."
 echo -e "  ${color_green}For all function just type all.${color_reset}"
 echo  "  help or h or ? for script info"
 
+read OSInfo <<< $(cat /etc/redhat-release)
+ipmiv=`ipmitool -V |awk '{print $3}'`
+dt=`date`
+
+echo "$dt" >> Result
+echo "SUT OS : $OSInfo " >> Result
+echo "ipmitool version : $ipmiv" >> Result
+echo "">>Result
+echo "">>Result
+
+
+
 function Test_Fuction () {
-	read -t 10 -p "Please select the Netfn use the space key to distinguash the multiple function(default : Chassis,App,S/E) : " Netfn
-	Netfn=$(Netfn:="0 4 6")
+	#Select Function with default is all
+	#read -t 5 -p "Please select the Netfn use the space key to distinguash the multiple function(default : Chassis,App,S/E) : " Netfn
+	#Netfn=$(Netfn:="all")
+	Netfn="all"
 	#Read Netfn in to upto 7 function being selected
 	read Fn1 Fn2 Fn3 Fn4 Fn5 Fn6 Fn7 <<< "$Netfn"
 	#Function array for check which function being selected
@@ -58,7 +72,10 @@ function Test_Fuction () {
 		case $Temp in
 			'bye' | 'exit' | 'esc' | 'Exit' | 'Bye' | 'EXIT' | 'BYE' | 'q' | 'Q') echo " Bye, $USER quit the test..." && exit ;;
 			'help'|'h'|'?') clear & more help.txt && Test_Fuction;;
-			all | All | ALL ) echo Test All Netfn... & ./All.sh && break;;
+			all | All | ALL ) echo Test All Netfn... 
+			Fn=5 
+			./All.sh
+			break;;
 			'') break;;
 			chassis | "0" | 0x00) echo Select chassis Netfn command & Fn[0]=1 && continue ;;
 			bridge | "2" | 0x02) echo Select Bridge Netfn command & Fn[1]=1 && continue ;;
@@ -78,7 +95,7 @@ function Test_Fuction () {
 		fi
 	done
 		
-	if [ $FnC -eq 1 ];then
+	if [ ! $FnC -eq 0 ];then
 		echo -e "${color_blue}Start Testing selected function...${color_reset}"
 	else
 		clear && echo -e "${color_red}No Netfn select, end testing...${color_reset}" 

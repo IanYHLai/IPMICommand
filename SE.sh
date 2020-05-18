@@ -14,7 +14,7 @@ fi
 date |tee -a SE.log
 
 echo -e "${color_convert}*This script will test one of the sensors to verify the command implemented or not.*${color_reset}"
-read OSInfo <<< $(cat /etc/os-release|grep -i pretty|cut -d = -f 2)
+read OSInfo <<< $(cat /etc/redhat-release)
 echo "$USER start S/E testing in $OSInfo "|tee -a SE.log
 
 i="ipmitool raw 0x04"
@@ -29,17 +29,20 @@ while read line
 		ipmitool sdr get $line |grep -i Type|awk -F\: '{print $2}' | awk -F "(" {'print $2'} | cut -d ')' -f 1 >> ForTest.txt
 		ipmitool sdr elist | awk '{ print $2 }' | cut -d 'h' -f 1 >> ForTest.txt
 		read temp <<< $(ipmitool sdr get $line| grep -i "sensor id"|awk -F'(' '{ print $2 }' | cut -d ')' -f 1)
-		ipmitool raw 0x04 0x2f 0x$temp|awk -F' ' '{print $2}' >> ForTest.txt
-		ipmitool raw 0x04 0x2f 0x$temp|awk -F' ' '{print $2}' >> EType.txt
+		ipmitool raw 0x04 0x2f $temp|awk -F' ' '{print $2}' >> ForTest.txt
+		ipmitool raw 0x04 0x2f $temp|awk -F' ' '{print $2}' >> EType.txt
 		echo "" >> ForTest.txt
 	done < SName.txt
 
-read -p "Please input BMC channel number(with 0xFF format) :" Ch
+#read -p "Please input BMC channel number(with 0xFF format) :" Ch
+Ch=0x0f
 #read -p "Please input sensor name for testing(with no quotes like CPU_CUPS) :" SN 
 #read -p "Please input sensor type of $SN(with 0xFF format) :" ST
 #read -p "Please input event type of $SN(with 0xFF format) :" ET
-read -p "Please input alert destination IPaddr(IPv4 like 127.0.0.1) :" CliIP
-read -p "Please input alert destination MACaddr(with '-' format like 01-02-03-04-05-06) :" CliMAC
+#read -p "Please input alert destination IPaddr(IPv4 like 127.0.0.1) :" CliIP
+CliIP=192.168.1.100
+#read -p "Please input alert destination MACaddr(with '-' format like 01-02-03-04-05-06) :" CliMAC
+CliMAC="00-0C-29-1B-79-A0"
 # Split the ipaddr to several variable
 IFS=. read ip1 ip2 ip3 ip4 <<< "$CliIP" # set delimiter IFS='.' then pass the string $CliIP to read ip1-ip4 
 # Can also use ${CliIP%%.*} '%%.*' %% means matches the left side string with right side character in this case assume the CliIP is 127.0.0.1 ${CliIP%%.*} will be 127
@@ -67,7 +70,7 @@ CliMAC="0x$mac1 0x$mac2 0x$mac3 0x$mac4 0x$mac5 0x$mac6"
 #SID=0x$(ipmitool sdr elist | grep -i "$SN" | awk -F\| '{print$2}' | cut -c 2-3) #with SN (sensor name) to search the sdr elist then cut the sensor ID to perform like 0xXX and save into $SID.
 
 FailCounter=0
-echo "BMC Channel=$Ch Client ip=$CliIP Client Mac=$CliMAC"|tee -a SE.log
+echo "Current ipmitool Channel=$Ch Client ip=$CliIP Client Mac=$CliMAC"|tee -a SE.log
 
 ## Start the test
 # raw 0x04 0x00

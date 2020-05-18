@@ -958,7 +958,7 @@ if [ ! $? -eq '0' ] ; then
 		FailCounter=$(($FailCounter+1))
 		Fail42=1
 	else
-		read GCI1 GCI2 GCI3 GCI4 GCI5 GCI6 GCI7 GCI8 GCI9 <<< $($i 0x42 0x00)
+		read GCI1 GCI2 GCI3 GCI4 GCI5 GCI6 GCI7 GCI8 GCI9 <<< $($i 0x42 0x$Ch)
 		for j in GCI{1..9}; do
 			eval temp=\$$j
 			temp=${D2B[$((16#$temp))]}
